@@ -1,6 +1,122 @@
+// superclass of TDesign, etc
+SphDesign {
+	var <>points;   // Points are Cartesians
+	var initPoints;
+	var <design;
+
+	*new {
+		^super.new
+	}
+
+	// support for creating a TDesign throuh SphDesign
+	*newT { |nPnts, t|
+		^super.new.initTDesign(nPnts, t)
+	}
+
+	initTDesign { |nPnts, t|
+		design = TDesign(nPnts, t, 3);
+	}
+
+	rotate { |angle| this.prUpdateDesign(\rotate, angle) }
+	tilt { |angle| this.prUpdateDesign(\tilt, angle) }
+	tumble { |angle| this.prUpdateDesign(\tumble, angle) }
+
+	// modify the design by performing method on all points
+	prUpdateDesign { |method ...args|
+		points = points.collect(_.perform(method, *args));
+		this.changed(\points)
+	}
+
+	directions { ^points.collect(_.asSpherical) }
+
+	numPoints { ^points.size }
+
+	size { ^points.size }
+
+	// reset points to position when first created
+	reset { points = initPoints }
+
+	prSaveInitState { initPoints = points }
+
+	visualize {
+		// TODO: controls:
+		// - RTT controls
+		// - auto RTT with range/rate params
+		// - show axes
+		// - view controls: eye distance (perspective)
+		// - orthogonal views: looking +/- XYZ axes
+	}
+
+	// triplets of points forming triangular mesh, e.g. for VBAP
+	triplets {
+
+	}
+}
+
+
+TDesign : SphDesign {
+	var <t, nPnts, dim;
+
+	*new { |nPnts, t, dim = 3|
+		^super.new.init(nPnts, t, dim);
+	}
+
+	init { |aNp, aT, aDim|
+		var path, data;
+
+		nPnts = aNp;
+		t = aT;
+		dim = aDim;
+
+		TDesignLib.lib ?? {TDesignLib.initLib};
+
+		// update instance vars in case not all are specified by *new
+		// errors out if no match or multiple matches found
+		#nPnts, t, dim = this.prFindDesignMatch;
+
+		path = TDesignLib.path +/+ "des.%.%.%.txt".format(dim, nPnts, t);
+		if (File.exists(path).not) {
+			"No t-design file found at %".format(path).throw
+		};
+
+		data = FileReader.read(path);
+
+		points = data.collect(_.asFloat).flat.clump(3).collect{ |xyz|
+			Cartesian(*xyz)
+		};
+
+		this.prSaveInitState;
+	}
+
+	prFindDesignMatch {
+		var matches, m;
+
+		matches = TDesignLib.getDesign(nPnts, t, dim);
+
+		case
+		{ matches.size == 0 } {
+			"[TDesign:-init] No t-designs found in TDesignLib.lib matching "
+			"nPnts %, t %, dim %".format(nPnts, t, dim).throw
+		}
+		{ matches.size > 1 } {
+			var e;
+			e = Error(
+				"[TDesign:-init] Multiple t-designs found, specify both 'nPnts' "
+				"and 't' to return one result. Available designs:"
+			);
+			e.errorString.postln;
+			matches.do(_.postln);
+			e.throw;
+		}
+		{ m = matches[0] };
+
+		// unpack the dictionary to set instance vars on return
+		^[m[\nPnts], m[\t], m[\dim]]
+	}
+}
 
 TDesignLib {
-	classvar <lib; // Array of designs, stored as Dictionaries
+	classvar <lib;   // Array of designs, stored as Dictionaries
 	classvar <>path;
 	// TODO: resolve default path
 	classvar <defaultPath = "/Users/admin/Library/Application Support/ATK/t-designs/";
@@ -39,7 +155,7 @@ TDesignLib {
 	}
 
 
-	// Download all of the t-designs:
+	// Download all of the t-designs.
 	// NOTE: may not be suitable for Windows
 	*downloadAll { |savePath, makeDir = false|
 		var p = savePath ?? {defaultPath};
@@ -126,104 +242,3 @@ TDesignLib {
 	}
 
 }
-
-TDesign {
-	var <nPnts, <t, <dim;  // copyArgs
-	var <>points;          // points are Cartesians
-	var <>directions;      // directions are Sphericals
-
-	*new { |nPnts, t, dim = 3|
-		^super.newCopyArgs(nPnts, t, dim).init;
-	}
-
-	init {
-		var path, data;
-
-		TDesignLib.lib ?? {TDesignLib.initLib};
-
-		#nPnts, t, dim = this.prFindDesignMatch; // errors if no match or multiple match found
-
-		path = TDesignLib.path +/+ "des.%.%.%.txt".format(dim, nPnts, t);
-		if (File.exists(path).not) {
-			"No t-design file found at %".format(path).throw
-		};
-
-		data = FileReader.read(path);
-
-		points = data.collect(_.asFloat).flat.clump(3).collect{ |xyz|
-			Cartesian(*xyz)
-		};
-
-		directions = points.collect(_.asSpherical);
-	}
-
-	prFindDesignMatch {
-		var matches, m;
-
-		matches = TDesignLib.getDesign(nPnts, t, dim);
-
-		case
-		{ matches.size == 0 } {
-			"[TDesign:-init] No t-designs found in TDesignLib.lib matching "
-			"nPnts %, t %, dim %".format(nPnts, t, dim).throw
-		}
-		{ matches.size > 1 } {
-			var e;
-			e = Error(
-				"[TDesign:-init] Multiple t-designs found, specify both 'nPnts' "
-				"and 't' to return one result. Available designs:"
-			);
-			e.errorString.postln;
-			matches.do(_.postln);
-			e.throw;
-		}
-		{ m = matches[0] };
-
-		// unpack the dictionary to set instance vars on return
-		^[m[\nPnts], m[\t], m[\dim]]
-	}
-}
-
-/*SphDesign {
-	var <>points, <>directions;
-	var initPoints, initDirections;
-	var <design;
-
-	*new {
-		^super.new
-	}
-
-	*newT { |nPnts, t|
-		^super.new.initTDesign(nPnts, t)
-	}
-
-	initTDesign { |nPnts, t|
-		design = TDesign(nPnts, t, 3);
-		points = design.points;
-		directions = design.directions;
-		this.saveInitState;
-	}
-
-	rotate { |angle| this.prUpdateDesign(\rotate, angle) }
-	tilt { |angle| this.prUpdateDesign(\tilt, angle) }
-	tumble { |angle| this.prUpdateDesign(\tumble, angle) }
-
-	// modify the design by performing method on points and directions
-	prUpdateDesign { |method, ...args|
-		points = poinst.collect(_.perform(method, args));
-		dirctions = directions.collect(_.perform(method, args));
-	}
-
-	// reset directions/points to position when first created
-	reset {
-		points = initPoints;
-		directions = initDirections;
-	}
-
-	prSaveInitState {
-		initPoints = points;
-		initDirections = directions;
-	}
-
-
-}*/
