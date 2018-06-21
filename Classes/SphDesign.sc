@@ -39,12 +39,7 @@ SphDesign {
 	prSaveInitState { initPoints = points }
 
 	visualize {
-		// TODO: controls:
-		// - RTT controls
-		// - auto RTT with range/rate params
-		// - show axes
-		// - view controls: eye distance (perspective)
-		// - orthogonal views: looking +/- XYZ axes
+
 	}
 
 	// triplets of points forming triangular mesh, e.g. for VBAP
