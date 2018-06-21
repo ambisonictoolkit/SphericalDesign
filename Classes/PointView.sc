@@ -7,7 +7,7 @@ PointView : View {
 	var <cen, <minDim;
 	var skewX = 0, skewY = 0;
 	var translateX = 0, translateY = 0;
-	var az, bz = 1.2;            // perspective parameters, see originDist_, eyeDist_
+	var az, bz = 3;              // perspective parameters, see originDist_, eyeDist_
 	var showIndices = true;      // show indices of points
 	var showAxes = true;         // show world axes
 	var showConnections = false; // show connections between points
@@ -32,7 +32,7 @@ PointView : View {
 	init { |argSpec, initVal|
 
 		points = [];
-		az = bz + 0.2; // distance to point from eye
+		az = bz + 1; // distance to point from eye
 		rotateStep = 0.5.degrad; // if autoRotate
 
 		userView = UserView(this, this.bounds.origin_(0@0))
@@ -271,6 +271,11 @@ PointView : View {
 	// draw lines between these indices of points
 	// e.g. [[1,3],[0,5],[2.4]]
 	connections_ { |arraysOfIndices|
+		if (arraysOfIndices.rank != 2) {
+			"[PointView:-connections_] arraysOfIndices argument "
+			"is not an array with rank == 2".throw
+		};
+
 		connections = arraysOfIndices;
 		showConnections = true;
 		this.refresh;
@@ -324,6 +329,35 @@ PointView : View {
 		points = cartesians;
 		connections = [(0..points.size-1)];
 		this.refresh;
+	}
+
+	// Set points by directions.
+	// Can be an Array of:
+	// Sphericals, or
+	// [[theta, phi], [theta, phi] ...], (rho assumed to be 1) or
+	// [[theta, phi, rho], [theta, phi, rho] ...]
+	directions_ { |dirArray|
+		var first, sphericals;
+
+		first = dirArray[0];
+		sphericals = case
+		{ first.isKindOf(Spherical) } {
+			dirArray
+		}
+		{ first.size ==  2 } {
+			dirArray.collect( Spherical(1, *_) )
+		}
+		{ first.size ==  3 } {
+			dirArray.collect{ |tpr| tpr.postln; Spherical(tpr[2], tpr[0], tpr[1]) }
+		}
+		{
+			"[PointView:-directions_] Invalid dirArray argument."
+			"Can be an Array of: Sphericals, or [[theta, phi], [theta, phi] ...], "
+			"(rho assumed to be 1), or [[theta, phi, rho], [theta, phi, rho] ...]"
+			.throw
+		};
+
+		this.points_(sphericals.collect(_.asCartesian));
 	}
 
 	refresh {
