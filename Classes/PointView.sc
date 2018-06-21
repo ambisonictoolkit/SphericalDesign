@@ -273,7 +273,7 @@ PointView : View {
 	connections_ { |arraysOfIndices|
 		if (arraysOfIndices.rank != 2) {
 			"[PointView:-connections_] arraysOfIndices argument "
-			"is not an array with rank == 2".throw
+			"is not an array with rank == 2.".throw
 		};
 
 		connections = arraysOfIndices;
@@ -364,16 +364,6 @@ PointView : View {
 		userView.animate.not.if{ userView.refresh };
 	}
 
-	// // overwrite default View method to retain freeing dependants
-	// onClose_ { |func|
-	// 	var newFunc = { |...args|
-	// 		layers.do(_.removeDependant(this));
-	// 		func.(*args)
-	// 	};
-	// 	// from View:onClose_
-	// 	this.manageFunctionConnection( onClose, newFunc, 'destroyed()', false );
-	// 	onClose = newFunc;
-	// }
 }
 
 /*
