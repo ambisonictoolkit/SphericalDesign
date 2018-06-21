@@ -1,14 +1,49 @@
-// superclass of TDesign, etc
+/*
+	Copyright the ATK Community and Joseph Anderson, 2011-2017
+        J Anderson	j.anderson[at]ambisonictoolkit.net
+        M McCrea    mtm5[at]uw.edu
+
+	This file is part of a Spherical Design library for SuperCollider3.
+	This is free software:
+	you can redistribute it and/or modify it under the terms of the GNU General
+	Public License as published by the Free Software Foundation, either version 3
+	of the License, or (at your option) any later version.
+
+	The Spherical Design library is distributed in
+	the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+	implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See
+	the GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License along with
+	this library. If not, see <http://www.gnu.org/licenses/>.
+*/
+
+
+//-------------------------------------------------------------------------
+// Third Party Notices
+//-------------------------------------------------------------------------
+//
+//-------------------------------------------------------------------------
+// This library includes an extension, found in extSphDesign.sc, containing
+// methods which ar a modification of Scott Wilson's SC port of Ville
+// Pukki's VBAP in PD. Wilson's comments and Pulkki's copyright statement
+// can be found in that file.
+//-----------------------------------------------------------------------
+
+
 SphDesign {
-	var <>points;   // Points are Cartesians
+	var <>points; // points are Cartesians
 	var initPoints;
 	var <design;
+	var <view;
+	var <triplets; // methods for calculating triplets found in extSphDesigns
+	var <>minSideLength = 0.01; // used in calcTriplets
 
 	*new {
 		^super.new
 	}
 
-	// support for creating a TDesign throuh SphDesign
+	// support for creating a TDesign via SphDesign
 	*newT { |nPnts, t|
 		^super.new.initTDesign(nPnts, t)
 	}
@@ -38,14 +73,21 @@ SphDesign {
 
 	prSaveInitState { initPoints = points }
 
-	visualize {
+	// showConnections will draw connections between points
+	visualize { |parent, bounds, showConnections = true|
+		if (showConnections and: { triplets.isNil }) {
+			try { this.calcTriplets } { "Could not calculate triplets".warn }
+		};
 
+		view = PointView(parent, bounds).points_(points).front;
+		this.addDependant(view);
+		view.onClose_({ view.onClose.addFunc({ this.removeDependant(view) }) });
+
+		if (showConnections and: { triplets.notNil }) {
+			view.connections_(triplets);
+		};
 	}
 
-	// triplets of points forming triangular mesh, e.g. for VBAP
-	triplets {
-
-	}
 }
 
 
