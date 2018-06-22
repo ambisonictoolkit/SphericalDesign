@@ -1,3 +1,123 @@
+
+PointViewCtl : View {
+	var pv; // PointView
+
+	var autoChks, invChks;
+	var rotSls;
+	var rotRadNbs, rotDegNbs, rotPerNbs;
+	// show hide: axes, indices, connections
+	var axChk, idxChk, conChk;
+	var headerTxts;
+	var mstrLayout;
+
+	*new { |pointView, bounds = (Rect(0,0, 400, 250))|
+		^super.new(pointView, bounds).init(pointView);
+	}
+
+	init { |pointView|
+		pv = pointView;
+		mstrLayout = HLayout();
+		this.layout_(mstrLayout);
+		// this.resize_(5);
+		this.background_(Color.red.alpha_(0.25));
+
+		// init controls
+		autoChks = [\autoRotate, \autoTilt, \autoTumble].collect{ |method|
+			CheckBox()
+			.action_({ |ui|
+				pv.perform((method ++ \_).asSymbol, ui.value)
+			})
+			.value_(pv.perform(method))
+			;
+		};
+
+		// invert rotation directions of auto-rotate
+		invChks = [\rotateDir, \tiltDir, \tumbleDir].collect{ |method|
+			CheckBox()
+			.action_({ |ui|
+				pv.perform((method ++ \_).asSymbol, ui.value.asBoolean.if({-1},{1}))
+			})
+			.value_(pv.perform(method).asBoolean.not)
+			;
+		};
+
+		// rotate sliders
+		rotSls = [\rotate, \tilt, \tumble].collect{ |method|
+			Slider()
+			.action_({ |ui|
+				pv.perform((method ++ \_).asSymbol, ui.value.linlin(0, 1, 2pi, -2pi))
+			})
+			.value_(pv.perform(method).linlin(2pi, -2pi, 0, 1))
+			.orientation_(\horizontal)
+			.maxHeight_(45)
+			;
+		};
+
+		// radian rotation NumberBoxes
+		rotRadNbs = [\rotate, \tilt, \tumble].collect{ |method|
+			NumberBox()
+			.action_({ |ui|
+				pv.perform((method ++ \_).asSymbol, ui.value * pi)
+			})
+			.clipLo_(-2).clipHi_(2)
+			.step_(0.02).scroll_step_(0.02)
+			.decimals_(2)
+			.maxWidth_("-2.00".bounds.width * 1.3)
+			.value_(pv.perform(method) / pi)
+			;
+		};
+
+		// degree rotation NumberBoxes
+		rotDegNbs = [\rotate, \tilt, \tumble].collect{ |method|
+			NumberBox()
+			.action_({ |ui|
+				pv.perform((method ++ \_).asSymbol, ui.value.degrad)
+			})
+			.clipLo_(-360).clipHi_(360)
+			.step_(0.5).scroll_step_(0.5)
+			.decimals_(1)
+			.maxWidth_("-180.0".bounds.width * 1.3)
+			.value_(pv.perform(method).degrad)
+			;
+		};
+
+		// rotation period NumberBoxes
+		rotPerNbs = [\rotatePeriod, \tiltPeriod, \tumblePeriod].collect{ |method|
+			NumberBox()
+			.action_({ |ui|
+				pv.perform((method ++ \_).asSymbol, ui.value)
+			})
+			.clipLo_(0.01).clipHi_(1000)
+			.step_(0.5).scroll_step_(0.5)
+			.decimals_(1)
+			.maxWidth_("500.5".bounds.width * 1.3)
+			.value_(pv.perform(method))
+			;
+		};
+
+		// labels above control columns
+		headerTxts = ["Rotate/Tilt/Tumble", "pi", "deg", "auto", "T", "inv"].collect{|txt|
+			StaticText()
+			.string_(txt)
+			.align_(\center)
+			;
+		};
+
+		// rotSls.do(mstrLayout.add(_));
+		// rotRadNbs.do(mstrLayout.add(_));
+		// rotDegNbs.do(mstrLayout.add(_));
+		// autoChks.do(mstrLayout.add(_));
+		// rotPerNbs.do(mstrLayout.add(_));
+		// invChks.do(mstrLayout.add(_));
+
+		[rotSls, rotRadNbs, rotDegNbs, autoChks, rotPerNbs, invChks].do({ |ctls, i|
+			var col;
+			col = ctls.insert(0, headerTxts[i]).add(nil);
+			mstrLayout.add(VLayout(*col))
+		});
+	}
+}
+
 PointView : View {
 	var <points; // points should be Cartesians
 	var <connections;
@@ -12,18 +132,20 @@ PointView : View {
 	var showAxes = true;         // show world axes
 	var showConnections = false; // show connections between points
 	var xyz, axisColors, axisScale = 1;
+	var frameRate = 25;
 
 	// movement
-	var rotate = 0, tilt = 0, tumble = 0;
-	var autoRotate = false, autoTumble = false, autoTilt = false;
-	var rotateStep;
+	var <rotate = 0, <tilt = 0, <tumble = 0; // radians
+	var <rotateRate = 0.1, <tiltRate = 0.1, <tumbleRate = 0.1; // Hz
+	var <rotateStep, tiltStep, tumbleStep; // radians
+	var <rotateDir = 1, <tiltDir  = 1, <tumbleDir = 1; // +/-1
+	var <autoRotate = false, <autoTumble = false, <autoTilt = false;
 
 	// views
-	var <userView;
+	var <userView, ctlView;
 
 	// interaction
 	var mouseDownPnt, mouseUpPnt, mouseMovePnt;
-
 
 	*new { |parent, bounds = (Rect(0,0, 600, 500))|
 		^super.new(parent, bounds).init;
@@ -33,11 +155,10 @@ PointView : View {
 
 		points = [];
 		az = bz + 1; // distance to point from eye
-		rotateStep = 0.5.degrad; // if autoRotate
 
 		userView = UserView(this, this.bounds.origin_(0@0))
 		.resize_(5)
-		.frameRate_(25)
+		.frameRate_(frameRate)
 		.drawFunc_(this.drawFunc)
 		;
 
@@ -46,16 +167,24 @@ PointView : View {
 		axisColors = [\blue, \red, \green].collect{|col| Color.perform(col, 1, 0.7) };
 		xyz = #["X", "Y", "Z"];
 
+		// init rotation variables
+		this.rotateRate_(rotateRate);
+		this.tiltRate_(tiltRate);
+		this.tumbleRate_(tumbleRate);
+
 		// TODO:
 		this.initInteractions;
 
 		this.onResize_({ this.updateCanvasDims });
-
-		this.onClose_({  }); // set default onClose to removeDependants
-
 		// initialize canvas
 		this.updateCanvasDims;
+
+		// init controller view
+		ctlView = PointViewCtl(this); //, Rect(5,5,200,this.bounds.height));
+		this.addDependant(ctlView);
+		ctlView.onClose({ this.removeDependant(ctlView) })
 	}
+
 
 	updateCanvasDims {
 		var bnds;
@@ -65,8 +194,41 @@ PointView : View {
 		minDim = min(bnds.width, bnds.height);
 	}
 
-	frameRate_ { |hz| userView.frameRate_(hz) }
-	frameRate { |hz| userView.frameRate }
+	points_ { |cartesians|
+		points = cartesians;
+		connections = [(0..points.size-1)];
+		this.refresh;
+	}
+
+	// Set points by directions.
+	// Can be an Array of:
+	// Sphericals, or
+	// [[theta, phi], [theta, phi] ...], (rho assumed to be 1) or
+	// [[theta, phi, rho], [theta, phi, rho] ...]
+	directions_ { |dirArray|
+		var first, sphericals;
+
+		first = dirArray[0];
+		sphericals = case
+		{ first.isKindOf(Spherical) } {
+			dirArray
+		}
+		{ first.size ==  2 } {
+			dirArray.collect( Spherical(1, *_) )
+		}
+		{ first.size ==  3 } {
+			dirArray.collect{ |tpr| tpr.postln; Spherical(tpr[2], tpr[0], tpr[1]) }
+		}
+		{
+			"[PointView:-directions_] Invalid dirArray argument."
+			"Can be an Array of: Sphericals, or [[theta, phi], [theta, phi] ...], "
+			"(rho assumed to be 1), or [[theta, phi, rho], [theta, phi, rho] ...]"
+			.throw
+		};
+
+		this.points_(sphericals.collect(_.asCartesian));
+	}
+
 
 	drawFunc {
 		^{ |v|
@@ -98,13 +260,13 @@ PointView : View {
 				}
 			};
 
-			incStep = { |rotation| (rotation + rotateStep) % 2pi };
+			incStep = { |rotation, step| (rotation + step).wrap(-2pi, 2pi) };
 
 			scale = minDim.half;
 
-			if (autoRotate) { rotate = incStep.(rotate) };
-			if (autoTilt) { tilt = incStep.(tilt) };
-			if (autoTumble) { tumble = incStep(tumble) };
+			if (autoRotate) { rotate = incStep.(rotate, rotateStep) };
+			if (autoTilt) { tilt = incStep.(tilt, tiltStep) };
+			if (autoTumble) { tumble = incStep.(tumble, tumbleStep) };
 
 			// rotate into ambisonics coords and rotate for user
 			pnts = rotPnts.(points);
@@ -214,44 +376,133 @@ PointView : View {
 		}
 	}
 
+
+	/* Perspective controls */
+
 	// skew/offset the points in the world (before perspective is added)
-	skewX_ { |norm = 0.0|
+	skewX_ { |norm|
 		skewX = norm;
 		this.refresh;
+		this.changed(\skewX, norm);
 	}
-	skewY_ { |norm = 0.0|
+	skewY_ { |norm|
 		skewY = norm;
 		this.refresh;
+		this.changed(\skewY, norm);
 	}
 
 	// translate the world (after perspective is added)
 	translateX_ { |norm|   // translateX: left -> right = -1 -> 1
 		translateX = norm;
 		this.refresh;
+		this.changed(\translateX, norm);
 	}
 	translateY_ { |norm|   // translateY: bottom -> top = -1 -> 1
 		translateY = norm;
 		this.refresh;
+		this.changed(\translateY, norm);
 	}
 
 	// distance of points' origin to screen
 	originDist_ { |norm|
 		az = bz + norm;
 		this.refresh;
+		this.changed(\originDist, norm);
 	}
-
 	// distance of eye to screen
 	eyeDist_ { |norm|
 		var temp = az - bz; // store origin offset
 		bz = norm;
 		az = bz + temp;
 		this.refresh;
+		this.changed(\eyeDist, norm);
 	}
+
+
+	/* View movement controls */
+
+	rotate_ { |radians|
+		rotate = radians;
+		autoRotate = false;
+		this.refresh;
+		this.changed(\rotate, radians);
+	}
+	tilt_ { |radians|
+		tilt = radians;
+		autoTilt = false;
+		this.refresh;
+		this.changed(\tilt, radians);
+	}
+	tumble_ { |radians|
+		tumble = radians;
+		autoTumble = false;
+		this.refresh;
+		this.changed(\tumble, radians);
+	}
+
+	// rotation direction: 1 ccw, -1 cw
+	rotateDir_ { |dir|
+		rotateDir = dir;
+		rotateStep = (rotateRate / frameRate) * 2pi * rotateDir;
+		this.changed(\rotateDir, rotateDir);
+	}
+	tiltDir_ { |dir|
+		tiltDir = dir;
+		tiltStep = (tiltRate / frameRate) * 2pi * tiltDir;
+		this.changed(\tiltDir, tiltDir);
+	}
+	tumbleDir_ { |dir|
+		tumbleDir = dir;
+		tumbleStep = (tumbleRate / frameRate) * 2pi * tumbleDir;
+		this.changed(\tumbleDir, tumbleDir);
+	}
+
+	rotateRate_ { |hz|
+		rotateRate = hz;
+		rotateStep = (rotateRate / frameRate) * 2pi * rotateDir;
+		this.changed(\rotateRate, hz);
+	}
+	tiltRate_ { |hz|
+		tiltRate = hz;
+		tiltStep = (tiltRate / frameRate) * 2pi * tiltDir;
+		this.changed(\tiltRate, hz);
+	}
+	tumbleRate_ { |hz|
+		tumbleRate = hz;
+		tumbleStep = (tumbleRate / frameRate) * 2pi * tumbleDir;
+		this.changed(\tumbleRate, hz);
+	}
+
+	rotatePeriod_ { |s| this.rotateRate_(s.reciprocal) }
+	tiltPeriod_ { |s| this.tiltRate_(s.reciprocal) }
+	tumblePeriod_ { |s| this.tumbleRate_(s.reciprocal) }
+
+	rotatePeriod { ^rotateRate.reciprocal }
+	tiltPeriod { ^tiltRate.reciprocal }
+	tumblePeriod { ^tumbleRate.reciprocal }
 
 	autoRotate_ { |bool|
 		autoRotate = bool;
-		userView.animate_(bool)
+		this.prCheckAnimate(\autoRotate, bool);
 	}
+	autoTilt_ { |bool|
+		autoTilt = bool;
+		this.prCheckAnimate(\autoTilt, bool);
+	}
+	autoTumble_ { |bool|
+		autoTumble = bool;
+		this.prCheckAnimate(\autoTumble, bool);
+	}
+
+	prCheckAnimate { |which, bool|
+		userView.animate_(
+			[autoRotate, autoTilt, autoTumble].any({|bool| bool});
+		);
+		this.changed(which, bool);
+	}
+
+
+	/* Display controls */
 
 	showIndices_ { |bool|
 		showIndices = bool;
@@ -291,6 +542,12 @@ PointView : View {
 		this.refresh;
 	}
 
+	frameRate_ { |hz|
+		frameRate = hz;
+		userView.frameRate_(hz);
+		this.changed(\frameRate, hz);
+	}
+
 	// TODO:
 	initInteractions {
 		userView.mouseMoveAction_({
@@ -323,41 +580,6 @@ PointView : View {
 			// this.stepByArrowKey(key);
 		});
 
-	}
-
-	points_ { |cartesians|
-		points = cartesians;
-		connections = [(0..points.size-1)];
-		this.refresh;
-	}
-
-	// Set points by directions.
-	// Can be an Array of:
-	// Sphericals, or
-	// [[theta, phi], [theta, phi] ...], (rho assumed to be 1) or
-	// [[theta, phi, rho], [theta, phi, rho] ...]
-	directions_ { |dirArray|
-		var first, sphericals;
-
-		first = dirArray[0];
-		sphericals = case
-		{ first.isKindOf(Spherical) } {
-			dirArray
-		}
-		{ first.size ==  2 } {
-			dirArray.collect( Spherical(1, *_) )
-		}
-		{ first.size ==  3 } {
-			dirArray.collect{ |tpr| tpr.postln; Spherical(tpr[2], tpr[0], tpr[1]) }
-		}
-		{
-			"[PointView:-directions_] Invalid dirArray argument."
-			"Can be an Array of: Sphericals, or [[theta, phi], [theta, phi] ...], "
-			"(rho assumed to be 1), or [[theta, phi, rho], [theta, phi, rho] ...]"
-			.throw
-		};
-
-		this.points_(sphericals.collect(_.asCartesian));
 	}
 
 	refresh {
@@ -432,4 +654,5 @@ v.axisScale = 0.333;
 // - draw furthest points first so closer points drawn on top
 // - break lines it segments to accentuate distance (axes especially)
 // - show point info on mouseOver
+// - add -highlightConnections(connection array) to emphasize a connection set (such as those triangles containing a VBAP source)
 */
