@@ -189,7 +189,7 @@ Unversity of California at Berkeley
 		dist_knv3 = (this.vec_angle(points[k], neg_v3));
 		dist_lnv3 = (this.vec_angle(neg_v3, points[l]));
 
-		/* if one of loudspeakers is close to crossing point, don't do anything*/
+		/* if one of loudspeakers is close to crossing point, don't do anything */
 		if((abs(dist_iv3) <= 0.01) || (abs(dist_jv3) <= 0.01) ||
 			(abs(dist_kv3) <= 0.01) || (abs(dist_lv3) <= 0.01) ||
 			(abs(dist_inv3) <= 0.01) || (abs(dist_jnv3) <= 0.01) ||
