@@ -1,4 +1,3 @@
-
 PointViewCtl : View {
 	var pv; // PointView
 
@@ -45,9 +44,9 @@ PointViewCtl : View {
 		rotSls = [\rotate, \tilt, \tumble].collect{ |method|
 			Slider()
 			.action_({ |ui|
-				pv.perform((method ++ \_).asSymbol, ui.value.linlin(0, 1, 2pi, -2pi))
+				pv.perform((method ++ \_).asSymbol, ui.value.linlin(0, 1, pi, -pi))
 			})
-			.value_(pv.perform(method).linlin(2pi, -2pi, 0, 1))
+			.value_(pv.perform(method).linlin(pi, -pi, 0, 1))
 			.orientation_(\horizontal)
 			.maxHeight_(45)
 			;
@@ -64,6 +63,7 @@ PointViewCtl : View {
 			.decimals_(2)
 			.maxWidth_("-2.00".bounds.width * 1.3)
 			.value_(pv.perform(method) / pi)
+			.align_(\center)
 			;
 		};
 
@@ -78,6 +78,7 @@ PointViewCtl : View {
 			.decimals_(1)
 			.maxWidth_("-180.0".bounds.width * 1.3)
 			.value_(pv.perform(method).degrad)
+			.align_(\center)
 			;
 		};
 
@@ -92,6 +93,7 @@ PointViewCtl : View {
 			.decimals_(1)
 			.maxWidth_("500.5".bounds.width * 1.3)
 			.value_(pv.perform(method))
+			.align_(\center)
 			;
 		};
 
@@ -118,6 +120,7 @@ PointViewCtl : View {
 	}
 }
 
+
 PointView : View {
 	var <points; // points should be Cartesians
 	var <connections;
@@ -133,6 +136,9 @@ PointView : View {
 	var showConnections = false; // show connections between points
 	var xyz, axisColors, axisScale = 1;
 	var frameRate = 25;
+	var <pointColors, prPntDrawCols;
+	var colsByHue = true, huesScrambled = false;     // if the colors have been set by hue range
+	var <pointSize = 15, <pointDistScale = 0.333;
 
 	// movement
 	var <rotate = 0, <tilt = 0, <tumble = 0; // radians
@@ -167,6 +173,10 @@ PointView : View {
 		axisColors = [\blue, \red, \green].collect{|col| Color.perform(col, 1, 0.7) };
 		xyz = #["X", "Y", "Z"];
 
+		// init draw colors
+		prPntDrawCols = [Color.hsv(0,1,1,1), Color.hsv(0.999,1,1,1)];
+		colsByHue = true;
+
 		// init rotation variables
 		this.rotateRate_(rotateRate);
 		this.tiltRate_(tiltRate);
@@ -197,6 +207,7 @@ PointView : View {
 	points_ { |cartesians|
 		points = cartesians;
 		connections = [(0..points.size-1)];
+		this.prUpdateColors;
 		this.refresh;
 	}
 
@@ -237,6 +248,9 @@ PointView : View {
 			var axPnts, axPnts_xf, axPnts_depths;
 			var rotPnts, to2D, incStep;
 			var strRect;
+			var minPntSize;
+
+			minPntSize = pointSize * pointDistScale;
 
 			rotPnts = { |carts|
 				carts.collect{ |pnt|
@@ -330,7 +344,7 @@ PointView : View {
 			pnts_xf.do{ |pnt, i|
 				var pntSize;
 
-				pntSize = pnt_depths[i].linlin(-1.0,1.0, 15, 5);
+				pntSize = pnt_depths[i].linlin(-1.0,1.0, pointSize, pointSize * pointDistScale);
 
 				// draw index
 				if (showIndices) {
@@ -345,7 +359,8 @@ PointView : View {
 				};
 
 				// draw point
-				Pen.fillColor_(Color.hsv(i / (pnts_xf.size - 1), 1, 1));
+				// Pen.fillColor_(Color.hsv(i / (pnts_xf.size - 1), 1, 1));
+				Pen.fillColor_(prPntDrawCols.wrapAt(i));
 				Pen.fillOval(Size(pntSize, pntSize).asRect.center_(pnt));
 			};
 
@@ -416,6 +431,18 @@ PointView : View {
 		az = bz + temp;
 		this.refresh;
 		this.changed(\eyeDist, norm);
+	}
+
+	pointSize_ { |px = 15|
+		pointSize = px;
+		this.refresh;
+		this.changed(\pointSize, px);
+	}
+
+	pointDistScale_ { |norm = 0.333|
+		pointDistScale = norm;
+		this.refresh;
+		this.changed(\pointDistScale, norm);
 	}
 
 
@@ -548,6 +575,89 @@ PointView : View {
 		this.changed(\frameRate, hz);
 	}
 
+
+	/* Point color controls */
+
+	// arrayOfColors can be a Color, Array of Colors.
+	// If (arrayOfColors.size != points.size), points will wrap through the
+	// color array, or be grouped into each color if colorSets has been set
+	pointColors_ { |arrayOfColors|
+
+		if (arrayOfColors.isKindOf(Color)) {
+			arrayOfColors = [arrayOfColors];
+		};
+
+		if (
+			arrayOfColors.isKindOf(Array) and:
+			{ arrayOfColors.every({ |elem| elem.isKindOf(Color) }) }
+		) {
+			pointColors = arrayOfColors;
+			prPntDrawCols = points.size.collect(pointColors.wrapAt(_));
+			this.refresh;
+		} {
+			"[PointView:-pointColors_] arrayOfColors argument is not a Color or Array of Colors".throw;
+		};
+		colsByHue = false;
+	}
+
+	hueRange_ { |hueLow = 0, hueHigh = 0.999, sat = 0.9, val = 1, alpha = 0.8, scramble = false|
+		var size = points.size;
+
+		prPntDrawCols = size.collect{ |i|
+			Color.hsv(
+				(i / (size - 1)).linlin(0, 0.999, hueLow, hueHigh),
+				sat, val, alpha
+			)
+		};
+		if (scramble) {
+			prPntDrawCols = prPntDrawCols.scramble;
+			huesScrambled = scramble;
+		};
+		colsByHue = true;
+	}
+
+	// Set groups of point indices which belong to each color in
+	// pointColors array.
+	// defaultColor is a Color for points not includes in arraysOfIndices
+	colorGroups_ { |arraysOfIndices, defaultColor = (Color.black)|
+
+		prPntDrawCols = points.size.collect{defaultColor};
+
+		if (arraysOfIndices.rank == 1) {
+			arraysOfIndices = [arraysOfIndices];
+		};
+
+		arraysOfIndices.do{ |group, grpIdx|
+			group.do{ |pntIdx|
+				prPntDrawCols[pntIdx] = pointColors.wrapAt(grpIdx)
+			}
+		};
+		colsByHue = false;
+		this.refresh;
+	}
+
+	// called when points are set
+	prUpdateColors {
+		var hues, sat, val, alpha;
+		if (colsByHue) {
+			hues = prPntDrawCols.collect(_.hue);
+			sat = prPntDrawCols.first.sat;
+			val = prPntDrawCols.first.val;
+			alpha = prPntDrawCols.first.alpha;
+			this.hueRange_(hues.minItem, hues.maxItem, sat, val, alpha, huesScrambled);
+		};
+
+		prPntDrawCols ?? {
+			prPntDrawCols = points.size.collect(pointColors.wrapAt(_));
+			^this
+		};
+
+		if (prPntDrawCols.size != points.size) {
+
+		}
+	}
+
+
 	// TODO:
 	initInteractions {
 		userView.mouseMoveAction_({
@@ -587,6 +697,8 @@ PointView : View {
 	}
 
 }
+
+
 
 /*
 
