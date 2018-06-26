@@ -142,10 +142,18 @@ PointView : View {
 
 	// movement
 	var <rotate = 0, <tilt = 0, <tumble = 0; // radians
-	var <rotateRate = 0.1, <tiltRate = 0.1, <tumbleRate = 0.1; // Hz
+	var <rotateRate = 0.05, <tiltRate = 0.05, <tumbleRate = 0.05; // Hz
 	var <rotateStep, tiltStep, tumbleStep; // radians
 	var <rotateDir = 1, <tiltDir  = 1, <tumbleDir = 1; // +/-1
 	var <autoRotate = false, <autoTumble = false, <autoTilt = false;
+	var <oscRotate = false, <oscTumble = false, <oscTilt = false;
+	var rotateOscT, rotateOscPhsInc;
+	var tiltOscT, tiltOscPhsInc;
+	var tumbleOscT, tumbleOscPhsInc;
+	var rotateOscCenter, rotateOscWidth;
+	var tiltOscCenter, tiltOscWidth;
+	var tumbleOscCenter, tumbleOscWidth;
+	var rotatePhase = 0, tiltPhase = 0, tumblePhase = 0; // phase index into the rotation oscillators
 
 	// views
 	var <userView, ctlView;
@@ -158,6 +166,7 @@ PointView : View {
 	}
 
 	init { |argSpec, initVal|
+		var initOscWidth = 0.25pi;
 
 		points = [];
 		az = bz + 1; // distance to point from eye
@@ -192,9 +201,15 @@ PointView : View {
 		// init controller view
 		ctlView = PointViewCtl(this); //, Rect(5,5,200,this.bounds.height));
 		this.addDependant(ctlView);
-		ctlView.onClose({ this.removeDependant(ctlView) })
-	}
+		ctlView.onClose({ this.removeDependant(ctlView) });
 
+		// init movement variables
+		this.rotateOscPeriod_(this.rotatePeriod * (initOscWidth/pi));
+		this.tiltOscPeriod_(this.tiltPeriod * (initOscWidth/pi));
+		this.tumbleOscPeriod_(this.tumblePeriod * (initOscWidth/pi));
+		rotateOscCenter = tiltOscCenter = tumbleOscCenter = 0;
+		tumbleOscWidth = tiltOscWidth = rotateOscWidth = initOscWidth;
+	}
 
 	updateCanvasDims {
 		var bnds;
@@ -251,13 +266,14 @@ PointView : View {
 			var minPntSize;
 
 			minPntSize = pointSize * pointDistScale;
+			scale = minDim.half;
 
 			rotPnts = { |carts|
 				carts.collect{ |pnt|
 					pnt
 					.rotate(0.5pi).tilt(0.5pi) // orient so view matches ambisonics
 					.rotate(tilt).tilt(tumble).tumble(rotate) // user rotation
-				};
+				}
 			};
 
 			// xformed points from 3D -> perspective -> 2D
@@ -274,13 +290,26 @@ PointView : View {
 				}
 			};
 
+			// if rotating
 			incStep = { |rotation, step| (rotation + step).wrap(-2pi, 2pi) };
-
-			scale = minDim.half;
-
 			if (autoRotate) { rotate = incStep.(rotate, rotateStep) };
 			if (autoTilt) { tilt = incStep.(tilt, tiltStep) };
 			if (autoTumble) { tumble = incStep.(tumble, tumbleStep) };
+
+			// if oscillating
+			if (oscRotate) {
+				rotatePhase = (rotatePhase + (rotateOscPhsInc * rotateDir)) % 2pi;
+				rotate = sin(rotatePhase) * 0.5 * rotateOscWidth + rotateOscCenter;
+			};
+			if (oscTilt) {
+				tiltPhase = (tiltPhase + (tiltOscPhsInc * tiltDir)) % 2pi;
+				tilt = sin(tiltPhase) * 0.5 * tiltOscWidth + tiltOscCenter;
+			};
+			if (oscTumble) {
+				tumblePhase = (tumblePhase + (tumbleOscPhsInc * tumbleDir)) % 2pi;
+				tumble = sin(tumblePhase) * 0.5 * tumbleOscWidth + tumbleOscCenter;
+			};
+
 
 			// rotate into ambisonics coords and rotate for user
 			pnts = rotPnts.(points);
@@ -500,32 +529,106 @@ PointView : View {
 		this.changed(\tumbleRate, hz);
 	}
 
-	rotatePeriod_ { |s| this.rotateRate_(s.reciprocal) }
-	tiltPeriod_ { |s| this.tiltRate_(s.reciprocal) }
-	tumblePeriod_ { |s| this.tumbleRate_(s.reciprocal) }
+	rotatePeriod_ { |seconds| this.rotateRate_(seconds.reciprocal) }
+	tiltPeriod_   { |seconds| this.tiltRate_(seconds.reciprocal) }
+	tumblePeriod_ { |seconds| this.tumbleRate_(seconds.reciprocal) }
 
 	rotatePeriod { ^rotateRate.reciprocal }
-	tiltPeriod { ^tiltRate.reciprocal }
+	tiltPeriod   { ^tiltRate.reciprocal }
 	tumblePeriod { ^tumbleRate.reciprocal }
 
 	autoRotate_ { |bool|
 		autoRotate = bool;
+		bool.if{ oscRotate = false };
 		this.prCheckAnimate(\autoRotate, bool);
 	}
 	autoTilt_ { |bool|
 		autoTilt = bool;
+		bool.if{ oscTilt = false };
 		this.prCheckAnimate(\autoTilt, bool);
 	}
 	autoTumble_ { |bool|
 		autoTumble = bool;
+		bool.if{ oscTumble = false };
 		this.prCheckAnimate(\autoTumble, bool);
+	}
+
+	oscRotate_ { |bool|
+		oscRotate = bool;
+		bool.if{ autoRotate = false };
+		this.prCheckAnimate(\oscRotate, bool);
+	}
+	oscTilt_ { |bool|
+		oscTilt = bool;
+		bool.if{ autoTilt = false };
+		this.prCheckAnimate(\oscTilt, bool);
+	}
+	oscTumble_ { |bool|
+		oscTumble = bool;
+		bool.if{ autoTumble = false };
+		this.prCheckAnimate(\oscTumble, bool);
 	}
 
 	prCheckAnimate { |which, bool|
 		userView.animate_(
-			[autoRotate, autoTilt, autoTumble].any({|bool| bool});
+			[   autoRotate, autoTilt, autoTumble,
+				oscRotate, oscTilt, oscTumble
+			].any({ |bool| bool });
 		);
 		this.changed(which, bool);
+	}
+
+
+	rotateOscPeriod_ { |seconds|
+		rotateOscT = seconds;
+		rotateOscPhsInc = 2pi / (seconds * frameRate);
+		this.changed(\rotateOscPeriod, seconds);
+	}
+	tiltOscPeriod_ { |seconds|
+		tiltOscT = seconds;
+		tiltOscPhsInc = 2pi / (seconds * frameRate);
+		this.changed(\tiltOscPeriod, seconds);
+	}
+	tumbleOscPeriod_ { |seconds|
+		tumbleOscT = seconds;
+		tumbleOscPhsInc = 2pi / (seconds * frameRate);
+		this.changed(\tumbleOscPeriod, seconds);
+	}
+
+	rotateOscCenter_ { |cenRad|
+		rotateOscCenter = cenRad;
+		this.changed(\rotateOscCenter, cenRad)
+	}
+	rotateOscWidth_  { |widthRad|
+		var deltaFactor;
+		deltaFactor = widthRad / rotateOscWidth;
+		rotateOscWidth = widthRad;
+		this.changed(\rotateOscWidth, widthRad);
+		this.rotateOscPeriod_(rotateOscT * deltaFactor)
+	}
+
+	tiltOscCenter_ { |cenRad|
+		tiltOscCenter = cenRad;
+		this.changed(\tiltOscCenter, cenRad)
+	}
+	tiltOscWidth_  { |widthRad|
+		var deltaFactor;
+		deltaFactor = widthRad / tiltOscWidth;
+		tiltOscWidth = widthRad;
+		this.changed(\tiltOscWidth, widthRad);
+		this.tiltOscPeriod_(tiltOscT * deltaFactor)
+	}
+
+	tumbleOscCenter_ { |cenRad|
+		tumbleOscCenter = cenRad;
+		this.changed(\tumbleOscCenter, cenRad)
+	}
+	tumbleOscWidth_  { |widthRad|
+		var deltaFactor;
+		deltaFactor = widthRad / tumbleOscWidth;
+		tumbleOscWidth = widthRad;
+		this.changed(\tumbleOscWidth, widthRad);
+		this.tumbleOscPeriod_(tumbleOscT * deltaFactor)
 	}
 
 
@@ -573,6 +676,8 @@ PointView : View {
 		frameRate = hz;
 		userView.frameRate_(hz);
 		this.changed(\frameRate, hz);
+		// update rotation oscillator's phase step
+		this.rotateOscT_(rotateOscT);
 	}
 
 
