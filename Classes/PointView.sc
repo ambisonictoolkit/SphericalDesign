@@ -1,126 +1,3 @@
-PointViewCtl : View {
-	var pv; // PointView
-
-	var autoChks, invChks;
-	var rotSls;
-	var rotRadNbs, rotDegNbs, rotPerNbs;
-	// show hide: axes, indices, connections
-	var axChk, idxChk, conChk;
-	var headerTxts;
-	var mstrLayout;
-
-	*new { |pointView, bounds = (Rect(0,0, 400, 250))|
-		^super.new(pointView, bounds).init(pointView);
-	}
-
-	init { |pointView|
-		pv = pointView;
-		mstrLayout = HLayout();
-		this.layout_(mstrLayout);
-		// this.resize_(5);
-		this.background_(Color.red.alpha_(0.25));
-
-		// init controls
-		autoChks = [\autoRotate, \autoTilt, \autoTumble].collect{ |method|
-			CheckBox()
-			.action_({ |ui|
-				pv.perform((method ++ \_).asSymbol, ui.value)
-			})
-			.value_(pv.perform(method))
-			;
-		};
-
-		// invert rotation directions of auto-rotate
-		invChks = [\rotateDir, \tiltDir, \tumbleDir].collect{ |method|
-			CheckBox()
-			.action_({ |ui|
-				pv.perform((method ++ \_).asSymbol, ui.value.asBoolean.if({-1},{1}))
-			})
-			.value_(pv.perform(method).asBoolean.not)
-			;
-		};
-
-		// rotate sliders
-		rotSls = [\rotate, \tilt, \tumble].collect{ |method|
-			Slider()
-			.action_({ |ui|
-				pv.perform((method ++ \_).asSymbol, ui.value.linlin(0, 1, pi, -pi))
-			})
-			.value_(pv.perform(method).linlin(pi, -pi, 0, 1))
-			.orientation_(\horizontal)
-			.maxHeight_(45)
-			;
-		};
-
-		// radian rotation NumberBoxes
-		rotRadNbs = [\rotate, \tilt, \tumble].collect{ |method|
-			NumberBox()
-			.action_({ |ui|
-				pv.perform((method ++ \_).asSymbol, ui.value * pi)
-			})
-			.clipLo_(-2).clipHi_(2)
-			.step_(0.02).scroll_step_(0.02)
-			.decimals_(2)
-			.maxWidth_("-2.00".bounds.width * 1.3)
-			.value_(pv.perform(method) / pi)
-			.align_(\center)
-			;
-		};
-
-		// degree rotation NumberBoxes
-		rotDegNbs = [\rotate, \tilt, \tumble].collect{ |method|
-			NumberBox()
-			.action_({ |ui|
-				pv.perform((method ++ \_).asSymbol, ui.value.degrad)
-			})
-			.clipLo_(-360).clipHi_(360)
-			.step_(0.5).scroll_step_(0.5)
-			.decimals_(1)
-			.maxWidth_("-180.0".bounds.width * 1.3)
-			.value_(pv.perform(method).degrad)
-			.align_(\center)
-			;
-		};
-
-		// rotation period NumberBoxes
-		rotPerNbs = [\rotatePeriod, \tiltPeriod, \tumblePeriod].collect{ |method|
-			NumberBox()
-			.action_({ |ui|
-				pv.perform((method ++ \_).asSymbol, ui.value)
-			})
-			.clipLo_(0.01).clipHi_(1000)
-			.step_(0.5).scroll_step_(0.5)
-			.decimals_(1)
-			.maxWidth_("500.5".bounds.width * 1.3)
-			.value_(pv.perform(method))
-			.align_(\center)
-			;
-		};
-
-		// labels above control columns
-		headerTxts = ["Rotate/Tilt/Tumble", "pi", "deg", "auto", "T", "inv"].collect{|txt|
-			StaticText()
-			.string_(txt)
-			.align_(\center)
-			;
-		};
-
-		// rotSls.do(mstrLayout.add(_));
-		// rotRadNbs.do(mstrLayout.add(_));
-		// rotDegNbs.do(mstrLayout.add(_));
-		// autoChks.do(mstrLayout.add(_));
-		// rotPerNbs.do(mstrLayout.add(_));
-		// invChks.do(mstrLayout.add(_));
-
-		[rotSls, rotRadNbs, rotDegNbs, autoChks, rotPerNbs, invChks].do({ |ctls, i|
-			var col;
-			col = ctls.insert(0, headerTxts[i]).add(nil);
-			mstrLayout.add(VLayout(*col))
-		});
-	}
-}
-
-
 PointView : View {
 	var <points; // points should be Cartesians
 	var <connections;
@@ -134,7 +11,7 @@ PointView : View {
 	var showIndices = true;      // show indices of points
 	var showAxes = true;         // show world axes
 	var showConnections = false; // show connections between points
-	var xyz, axisColors, axisScale = 1;
+	var xyz, <axisColors, axisScale = 1;
 	var frameRate = 25;
 	var <pointColors, prPntDrawCols;
 	var colsByHue = true, huesScrambled = false;     // if the colors have been set by hue range
@@ -154,6 +31,7 @@ PointView : View {
 	var tiltOscCenter, tiltOscWidth;
 	var tumbleOscCenter, tumbleOscWidth;
 	var rotatePhase = 0, tiltPhase = 0, tumblePhase = 0; // phase index into the rotation oscillators
+	var rotateMode = \rtt; // \rtt or \ypr
 
 	// views
 	var <userView, ctlView;
@@ -199,7 +77,7 @@ PointView : View {
 		this.updateCanvasDims;
 
 		// init controller view
-		ctlView = PointViewCtl(this); //, Rect(5,5,200,this.bounds.height));
+		ctlView = PointViewUI(this); //, Rect(5,5,200,this.bounds.height));
 		this.addDependant(ctlView);
 		ctlView.onClose({ this.removeDependant(ctlView) });
 
@@ -209,6 +87,8 @@ PointView : View {
 		this.tumbleOscPeriod_(this.tumblePeriod * (initOscWidth/pi));
 		rotateOscCenter = tiltOscCenter = tumbleOscCenter = 0;
 		tumbleOscWidth = tiltOscWidth = rotateOscWidth = initOscWidth;
+
+		this.rotateMode_(rotateMode);
 	}
 
 	updateCanvasDims {
@@ -269,11 +149,21 @@ PointView : View {
 			scale = minDim.half;
 
 			rotPnts = { |carts|
-				carts.collect{ |pnt|
-					pnt
-					.rotate(0.5pi).tilt(0.5pi) // orient so view matches ambisonics
-					.rotate(tilt).tilt(tumble).tumble(rotate) // user rotation
-				}
+				switch (rotateMode,
+					\rtt, {
+						carts.collect{ |pnt|
+							pnt.rotate(rotate).tilt(tilt).tumble(tumble)
+							.rotate(0.5pi).tilt(0.5pi) // orient so view matches ambisonics
+						}
+					},
+					\ypr, {
+						carts.collect{ |pnt|
+							pnt
+							.tilt(tilt).tumble(tumble).rotate(rotate)
+							.rotate(0.5pi).tilt(0.5pi) // orient so view matches ambisonics
+						}
+					}
+				)
 			};
 
 			// xformed points from 3D -> perspective -> 2D
@@ -500,33 +390,33 @@ PointView : View {
 	rotateDir_ { |dir|
 		rotateDir = dir;
 		rotateStep = (rotateRate / frameRate) * 2pi * rotateDir;
-		this.changed(\rotateDir, rotateDir);
+		this.changed(\dir, \rotate, rotateDir);
 	}
 	tiltDir_ { |dir|
 		tiltDir = dir;
 		tiltStep = (tiltRate / frameRate) * 2pi * tiltDir;
-		this.changed(\tiltDir, tiltDir);
+		this.changed(\dir, \tilt, tiltDir);
 	}
 	tumbleDir_ { |dir|
 		tumbleDir = dir;
 		tumbleStep = (tumbleRate / frameRate) * 2pi * tumbleDir;
-		this.changed(\tumbleDir, tumbleDir);
+		this.changed(\dir, \tumble, tumbleDir);
 	}
 
 	rotateRate_ { |hz|
 		rotateRate = hz;
 		rotateStep = (rotateRate / frameRate) * 2pi * rotateDir;
-		this.changed(\rotateRate, hz);
+		this.changed(\rate, \rotate, hz);
 	}
 	tiltRate_ { |hz|
 		tiltRate = hz;
 		tiltStep = (tiltRate / frameRate) * 2pi * tiltDir;
-		this.changed(\tiltRate, hz);
+		this.changed(\rate, \tilt, hz);
 	}
 	tumbleRate_ { |hz|
 		tumbleRate = hz;
 		tumbleStep = (tumbleRate / frameRate) * 2pi * tumbleDir;
-		this.changed(\tumbleRate, hz);
+		this.changed(\rate, \tumble, hz);
 	}
 
 	rotatePeriod_ { |seconds| this.rotateRate_(seconds.reciprocal) }
@@ -537,36 +427,36 @@ PointView : View {
 	tiltPeriod   { ^tiltRate.reciprocal }
 	tumblePeriod { ^tumbleRate.reciprocal }
 
-	autoRotate_ { |bool|
+	rotateAuto_ { |bool|
 		autoRotate = bool;
 		bool.if{ oscRotate = false };
-		this.prCheckAnimate(\autoRotate, bool);
+		this.prCheckAnimate(\auto, \rotate, bool);
 	}
-	autoTilt_ { |bool|
+	tiltAuto_ { |bool|
 		autoTilt = bool;
 		bool.if{ oscTilt = false };
-		this.prCheckAnimate(\autoTilt, bool);
+		this.prCheckAnimate(\auto, \tilt, bool);
 	}
-	autoTumble_ { |bool|
+	tumbleAuto_ { |bool|
 		autoTumble = bool;
 		bool.if{ oscTumble = false };
-		this.prCheckAnimate(\autoTumble, bool);
+		this.prCheckAnimate(\auto, \tumble, bool);
 	}
 
-	oscRotate_ { |bool|
+	rotateOsc_ { |bool|
 		oscRotate = bool;
 		bool.if{ autoRotate = false };
-		this.prCheckAnimate(\oscRotate, bool);
+		this.prCheckAnimate(\rotate, bool);
 	}
-	oscTilt_ { |bool|
+	tiltOsc_ { |bool|
 		oscTilt = bool;
 		bool.if{ autoTilt = false };
-		this.prCheckAnimate(\oscTilt, bool);
+		this.prCheckAnimate(\tilt, bool);
 	}
-	oscTumble_ { |bool|
+	tumbleOsc_ { |bool|
 		oscTumble = bool;
 		bool.if{ autoTumble = false };
-		this.prCheckAnimate(\oscTumble, bool);
+		this.prCheckAnimate(\tumble, bool);
 	}
 
 	prCheckAnimate { |which, bool|
@@ -575,62 +465,66 @@ PointView : View {
 				oscRotate, oscTilt, oscTumble
 			].any({ |bool| bool });
 		);
-		this.changed(which, bool);
+		this.changed(\osc, which, bool);
 	}
 
 
 	rotateOscPeriod_ { |seconds|
 		rotateOscT = seconds;
 		rotateOscPhsInc = 2pi / (seconds * frameRate);
-		this.changed(\rotateOscPeriod, seconds);
+		this.changed(\oscPeriod, \rotate, seconds);
 	}
 	tiltOscPeriod_ { |seconds|
 		tiltOscT = seconds;
 		tiltOscPhsInc = 2pi / (seconds * frameRate);
-		this.changed(\tiltOscPeriod, seconds);
+		this.changed(\oscPeriod, \tilt, seconds);
 	}
 	tumbleOscPeriod_ { |seconds|
 		tumbleOscT = seconds;
 		tumbleOscPhsInc = 2pi / (seconds * frameRate);
-		this.changed(\tumbleOscPeriod, seconds);
+		this.changed(\oscPeriod, \tumble, seconds);
 	}
 
 	rotateOscCenter_ { |cenRad|
 		rotateOscCenter = cenRad;
-		this.changed(\rotateOscCenter, cenRad)
+		this.changed(\oscCenter, \rotate, cenRad)
 	}
+	tiltOscCenter_ { |cenRad|
+		tiltOscCenter = cenRad;
+		this.changed(\oscCenter, \tilt, cenRad)
+	}
+	tumbleOscCenter_ { |cenRad|
+		tumbleOscCenter = cenRad;
+		this.changed(\oscCenter, \tumble, cenRad)
+	}
+
 	rotateOscWidth_  { |widthRad|
 		var deltaFactor;
 		deltaFactor = widthRad / rotateOscWidth;
 		rotateOscWidth = widthRad;
-		this.changed(\rotateOscWidth, widthRad);
+		this.changed(\oscWidth, \rotate, widthRad);
 		this.rotateOscPeriod_(rotateOscT * deltaFactor)
-	}
-
-	tiltOscCenter_ { |cenRad|
-		tiltOscCenter = cenRad;
-		this.changed(\tiltOscCenter, cenRad)
 	}
 	tiltOscWidth_  { |widthRad|
 		var deltaFactor;
 		deltaFactor = widthRad / tiltOscWidth;
 		tiltOscWidth = widthRad;
-		this.changed(\tiltOscWidth, widthRad);
+		this.changed(\oscWidth, \tilt, widthRad);
 		this.tiltOscPeriod_(tiltOscT * deltaFactor)
-	}
-
-	tumbleOscCenter_ { |cenRad|
-		tumbleOscCenter = cenRad;
-		this.changed(\tumbleOscCenter, cenRad)
 	}
 	tumbleOscWidth_  { |widthRad|
 		var deltaFactor;
 		deltaFactor = widthRad / tumbleOscWidth;
 		tumbleOscWidth = widthRad;
-		this.changed(\tumbleOscWidth, widthRad);
+		this.changed(\oscWidth, \tumble, widthRad);
 		this.tumbleOscPeriod_(tumbleOscT * deltaFactor)
 	}
 
+	rotateMode_ { |rttOrYpr|
+		rotateMode = rttOrYpr;
+		this.changed(\rotateMode, rotateMode);
+		this.refresh;
+	}
 
 	/* Display controls */
 
