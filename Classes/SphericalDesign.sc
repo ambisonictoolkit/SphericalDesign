@@ -28,10 +28,19 @@
 // methods which ar a modification of Scott Wilson's SC port of Ville
 // Pukki's VBAP in PD. Wilson's comments and Pulkki's copyright statement
 // can be found in that file.
-//-----------------------------------------------------------------------
+//-------------------------------------------------------------------------
+//
+//-------------------------------------------------------------------------
+// The T-Designs found here are from the work of:
+//    McLaren's Improved Snub Cube and Other New Spherical Designs in Three
+//    Dimensions, R. H. Hardin and N. J. A. Sloane, Discrete and Computational
+//    Geometry, 15 (1996), pp. 429-441.
+// and are downloaded directly from their site:
+//    http://neilsloane.com/sphdesigns/
+//-------------------------------------------------------------------------
 
 
-SphDesign {
+SphericalDesign {
 	var <>points; // points are Cartesians
 	var initPoints;
 	var <design;
@@ -53,7 +62,7 @@ SphDesign {
 	}
 
 	rotate { |angle| this.prUpdateDesign(\rotate, angle) }
-	tilt { |angle| this.prUpdateDesign(\tilt, angle) }
+	tilt   { |angle| this.prUpdateDesign(\tilt, angle) }
 	tumble { |angle| this.prUpdateDesign(\tumble, angle) }
 
 	// modify the design by performing method on all points
@@ -91,7 +100,7 @@ SphDesign {
 }
 
 
-TDesign : SphDesign {
+TDesign : SphericalDesign {
 	var <t, nPnts, dim;
 
 	*new { |nPnts, t, dim = 3|
@@ -148,10 +157,12 @@ TDesign : SphDesign {
 		{ m = matches[0] };
 
 		// unpack the dictionary to set instance vars on return
-		^[m[\nPnts], m[\t], m[\dim]]
+		^[m[\numPoints], m[\t], m[\dim]]
 	}
 }
 
+// A class to download, import, sort and retrieve T-Designs.
+// http://neilsloane.com/sphdesigns/
 TDesignLib {
 	classvar <lib;   // Array of designs, stored as Dictionaries
 	classvar <>path;
@@ -185,7 +196,7 @@ TDesignLib {
 			#dim, nPnts, t = f.fileNameWithoutExtension.drop(4).split($.).asInt;
 			lib.add(
 				Dictionary.newFrom([
-					\dim, dim, \nPnts, nPnts, \t, t
+					\dim, dim, \numPoints, nPnts, \t, t
 				]);
 			);
 		});
@@ -193,7 +204,7 @@ TDesignLib {
 
 
 	// Download all of the t-designs.
-	// NOTE: may not be suitable for Windows
+	// NOTE: uses curl, may not be suitable for Windows
 	*downloadAll { |savePath, makeDir = false|
 		var p = savePath ?? {defaultPath};
 
@@ -202,7 +213,7 @@ TDesignLib {
 				File.mkdir(p)
 			} {
 				format(
-					"[TDesignLib:*download] Save path doesn't exist. "
+					"[TDesignLib:*downloadAll] Save path doesn't exist. "
 					"Set makeDir=true to create it. [%]",
 					path
 				).throw
@@ -256,7 +267,7 @@ TDesignLib {
 						"grep href | grep \".txt\" | sed 's/.*href=\"//' | sed 's/\".*//'",
 						this.path.asCompileString
 					)
-				).split($\n).collect({|me| me.drop(5).reverse.drop(4).reverse});
+				).split($\n).collect({ |me| me.drop(5).reverse.drop(4).reverse });
 
 			};
 		};
@@ -271,8 +282,8 @@ TDesignLib {
 
 		^lib.select{ |item|
 			var t1, t2, t3;
-			t1 = (nPnts.isNil or: {item[\nPnts] == nPnts});
-			t2 = t.isNil or: {item[\t] == t};
+			t1 = (nPnts.isNil or: { item[\numPoints] == nPnts });
+			t2 = t.isNil or: { item[\t] == t };
 			t3 = item[\dim] == dim;
 			t1 and: t2 and: t3;
 		}

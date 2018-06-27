@@ -1,5 +1,5 @@
 /*
-	The following methods extend the SphDesign class and are
+	The following methods extend the SphericalDesign class and are
 	stored here to denote that these methods are copied,
 	with some modification, from Scott Wilson's port
 	(VBAPSpeakerArray) of Ville Pukki's VBAP library in PureData.
@@ -33,7 +33,7 @@ Unversity of California at Berkeley
 
 */
 
-+ SphDesign {
++ SphericalDesign {
 
 	/*
 	Selects the loudspeaker triplets, and
