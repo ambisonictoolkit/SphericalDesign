@@ -3,19 +3,12 @@
 
 PointViewUI : View {
 	var pv; // PointView
-
-	var autoChks, invChks;
-	var rotSls;
-	var rotRadNbs, rotDegNbs, rotPerNbs;
-	// show/hide: axes, indices, connections
-	var axChk, idxChk, conChk;
-	var headerTxts;
 	var mstrLayout;
+	var settingView, labelView;
+	var rttChk, yprChk, radChk, degChk, cycChk, oscChk;
+	var indicesChk, axesChk, connChk;
 
-	// motion flags
-	var rttModeChk, yprModeChk, radianChk, degreeChk;
-
-	*new { |pointView, bounds = (Rect(0,0, 700, 250))|
+	*new { |pointView, bounds = (Rect(0,0, 700, 300))|
 		^super.new(pointView, bounds).init(pointView);
 	}
 
@@ -30,114 +23,145 @@ PointViewUI : View {
 		this.resize_(5);
 		this.background_(Color.green.alpha_(0.25));
 
-		// init controls
-		autoChks = [\autoRotate, \autoTilt, \autoTumble].collect{ |method|
-			CheckBox()
-			.action_({ |ui|
-				pv.perform((method ++ \_).asSymbol, ui.value)
-			})
-			.value_(pv.perform(method))
-			;
-		};
+		rttChk = CheckBox()
+		.action_({ |cb| pv.rotateMode_(if (cb.value) { \rtt } { \ypr }) })
+		;
 
-		// invert rotation directions of auto-rotate
-		invChks = [\rotateDir, \tiltDir, \tumbleDir].collect{ |method|
-			CheckBox()
-			.action_({ |ui|
-				pv.perform((method ++ \_).asSymbol, ui.value.asBoolean.if({-1},{1}))
-			})
-			.value_(pv.perform(method).asBoolean.not)
-			;
-		};
+		yprChk = CheckBox()
+		.action_({ |cb|
+			pv.rotateMode_(if (cb.value) { \ypr } { \rtt })
+		})
+		;
 
-		// rotate sliders
-		rotSls = [\rotate, \tilt, \tumble].collect{ |method|
-			Slider()
-			.action_({ |ui|
-				pv.perform((method ++ \_).asSymbol, ui.value.linlin(0, 1, pi, -pi))
-			})
-			.value_(pv.perform(method).linlin(pi, -pi, 0, 1))
-			.orientation_(\horizontal)
-			.maxHeight_(45)
-			;
-		};
+		radChk = CheckBox()
+		.action_({ |cb| pv.units_(if (cb.value) { \radians } { \degrees }) })
+		;
 
-		// radian rotation NumberBoxes
-		rotRadNbs = [\rotate, \tilt, \tumble].collect{ |method|
-			NumberBox()
-			.action_({ |ui|
-				pv.perform((method ++ \_).asSymbol, ui.value * pi)
-			})
-			.clipLo_(-2).clipHi_(2)
-			.step_(0.02).scroll_step_(0.02)
-			.decimals_(2)
-			.maxWidth_("-2.00".bounds.width * 1.3)
-			.value_(pv.perform(method) / pi)
-			.align_(\center)
-			;
-		};
+		degChk = CheckBox()
+		.action_({ |cb| pv.units_(if (cb.value) { \degrees } { \radians }) })
+		;
 
-		// degree rotation NumberBoxes
-		rotDegNbs = [\rotate, \tilt, \tumble].collect{ |method|
-			NumberBox()
-			.action_({ |ui|
-				pv.perform((method ++ \_).asSymbol, ui.value.degrad)
-			})
-			.clipLo_(-360).clipHi_(360)
-			.step_(0.5).scroll_step_(0.5)
-			.decimals_(1)
-			.maxWidth_("-180.0".bounds.width * 1.3)
-			.value_(pv.perform(method).degrad)
-			.align_(\center)
-			;
-		};
+		cycChk = CheckBox()
+		.action_({ |cb| pv.allAuto_(cb.value) })
+		;
 
-		// rotation period NumberBoxes
-		rotPerNbs = [\rotatePeriod, \tiltPeriod, \tumblePeriod].collect{ |method|
-			NumberBox()
-			.action_({ |ui|
-				pv.perform((method ++ \_).asSymbol, ui.value)
-			})
-			.clipLo_(0.01).clipHi_(1000)
-			.step_(0.5).scroll_step_(0.5)
-			.decimals_(1)
-			.maxWidth_("500.5".bounds.width * 1.3)
-			.value_(pv.perform(method))
-			.align_(\center)
-			;
-		};
+		oscChk = CheckBox()
+		.action_({ |cb| pv.allOsc_(cb.value) })
+		;
 
-		// labels above control columns
-		headerTxts = ["Rotate/Tilt/Tumble", "pi", "deg", "auto", "T", "inv"].collect{|txt|
-			StaticText()
-			.string_(txt)
-			.align_(\center)
-			;
-		};
+		indicesChk = CheckBox()
+		.action_({ |cb| pv.showIndices_(cb.value) })
+		;
+		axesChk = CheckBox()
+		.action_({ |cb| pv.showAxes_(cb.value) })
+		;
+		connChk = CheckBox()
+		.action_({ |cb| pv.showConnections_(cb.value) })
+		;
 
-		// motion flags
-		// var rttModeChk, yprModeChk, radianChk, degreeChk;
+		settingView = View().layout_(
+			HLayout(
+				View().layout_(
+					HLayout(
+						VLayout(
+							StaticText().string_("Convention"),
+							HLayout(
+								rttChk, StaticText().string_("RTT"), nil
+							),
+							HLayout(
+								yprChk, StaticText().string_("YPR"), nil
+							)
+						),
+						VLayout(
+							StaticText().string_("Units"),
+							HLayout(
+								radChk, StaticText().string_("Radians"), nil
+							),
+							HLayout(
+								degChk, StaticText().string_("Degrees"), nil
+							)
+						)
+					).margins_(0)
+				).fixedWidth_(235),
+				cycChk,
+				StaticText().string_("Cycle"),
+				40,
+				oscChk,
+				StaticText().string_("Oscillate"),
+				nil
+			)
+		);
 
-		// rotSls.do(mstrLayout.add(_));
-		// rotRadNbs.do(mstrLayout.add(_));
-		// rotDegNbs.do(mstrLayout.add(_));
-		// autoChks.do(mstrLayout.add(_));
-		// rotPerNbs.do(mstrLayout.add(_));
-		// invChks.do(mstrLayout.add(_));
-
-		// [rotSls, rotRadNbs, rotDegNbs, autoChks, rotPerNbs, invChks].do({ |ctls, i|
-		// 	var col;
-		// 	col = ctls.insert(0, headerTxts[i]).add(nil);
-		// 	mstrLayout.add(VLayout(*col))
-		// });
+		labelView = View().layout_(
+			HLayout(
+				View().layout_(
+					// HLayout(
+					// 	nil,
+					// 	cycChk,
+					// 	StaticText().string_("Cycle"),
+					// 	oscChk,
+					// 	StaticText().string_("Oscillate"),
+					// 	15
+					// )
+				).fixedWidth_(235),
+				StaticText().string_("Period").align_(\left).fixedWidth_(95),
+				View().layout_(
+					HLayout(
+						StaticText().string_("Period").align_(\left),
+						StaticText().string_("Center").align_(\left),
+						StaticText().string_("Width").align_(\left),
+						nil
+					).margins_(0).spacing_(20)
+				).fixedWidth_(205),
+				StaticText().string_("Inv").align_(\left),
+			).spacing_(2)
+		);
 
 		[
+			settingView,
+			labelView,
 			PointViewMotionCtl( pv, \rotate, \rtt, \radians, pv.axisColors[2]),
 			PointViewMotionCtl( pv, \tilt,   \rtt, \radians, pv.axisColors[0]),
 			PointViewMotionCtl( pv, \tumble, \rtt, \radians, pv.axisColors[1]),
+			PointViewMotionCtl( pv, \all,    \rtt, \radians, Color.clear),
 			nil
 		].do(mstrLayout.add(_));
 	}
+
+	update {
+		| who, what ... args |
+		var val;
+
+		case
+		{who == pv} {
+			switch (what,
+				\rotateMode, {
+					switch (args[0],
+						\rtt, { rttChk.value = true; yprChk.value = false },
+						\ypr, { rttChk.value = false; yprChk.value = true }
+					)
+				},
+				\showIndices, { indicesChk.value = args[0].asBoolean },
+				\showAxes, { axesChk.value = args[0].asBoolean },
+				\showConnections, { connChk.value = args[0].asBoolean },
+				\units, {
+					switch (args[0],
+						\radians, { radChk.value = true; degChk.value = false },
+						\degrees, { radChk.value = false; degChk.value = true }
+					)
+				},
+				\allAuto, {
+					cycChk.value_(args[0]);
+					if (args[0]) { oscChk.value = false };
+				},
+				\allOsc,  {
+					oscChk.value_(args[0]);
+					if (args[0]) { cycChk.value = false };
+				},
+			)
+		}
+	}
+
 }
 
 
@@ -145,6 +169,7 @@ PointViewUI : View {
 // parameters used by PointView, one for each axis of rotation.
 // State changes are broadcast from the UI and captured in
 // the update method of the PointView, which is its dependent.
+
 PointViewMotionCtl : View {
 
 	var pv, mode, whichRot, units, specRad, specDeg, slSpec;
@@ -183,7 +208,8 @@ PointViewMotionCtl : View {
 			\tilt,   { \tilt },
 			\roll,   { \tilt },
 			\tumble, { \tumble },
-			\pitch,  { \tumble }
+			\pitch,  { \tumble },
+			\all,    { \all }
 		);
 
 		// primary spec
@@ -207,25 +233,25 @@ PointViewMotionCtl : View {
 	mode_ { |rttOrYpr|
 		var str;
 
-		mode = rttOrYpr.asSymbol;
+		if (whichRot != \all) {
 
-		str = switch (mode,
-			\rtt, {
-				str = whichRot.asString;
-				str[0].toUpper ++ str.drop(1);
-			},
-			\ypr, {
-				switch (whichRot,
-					\rotate, {"Yaw"},
-					\tilt,   {"Roll"},
-					\tumble, {"Pitch"},
-				)
-			}
-		);
+			mode = rttOrYpr.asSymbol;
+			str = switch (mode,
+				\rtt, {
+					str = whichRot.asString;
+					str[0].toUpper ++ str.drop(1);
+				},
+				\ypr, {
+					switch (whichRot,
+						\rotate, {"Yaw"},
+						\tilt,   {"Roll"},
+						\tumble, {"Pitch"},
+					)
+				}
+			);
 
-		slLabel.string_(str);
-
-		this.changed(\mode, mode);
+			slLabel.string_(str);
+		};
 	}
 
 	initWidgets {
@@ -236,8 +262,6 @@ PointViewMotionCtl : View {
 			var val = slSpec.map(sl.value);
 			var method = (whichRot ++ \_).asSymbol;
 			pv.perform(method, val);
-			// rotRadNb.value_(val / pi);
-			// rotDegNb.value_(val.raddeg);
 		})
 		.orientation_(\horizontal)
 		.minWidth_(150).maxHeight_(20)
@@ -253,13 +277,6 @@ PointViewMotionCtl : View {
 			var val = nb.value * pi;
 			var method = (whichRot ++ \_).asSymbol;
 			pv.perform(method, val);
-			// sl.value_(
-			// 	slSpec.unmap(
-			// 		val.wrap(slSpec.minval, slSpec.maxval)
-			// 	)
-			// );
-			// rotDegNb.value_(val.raddeg);
-			// this.changed(\rotation, val);
 		})
 		.clipLo_(specRad.minval / pi).clipHi_(specRad.maxval / pi)
 		.step_(0.02).scroll_step_(0.02)
@@ -271,13 +288,6 @@ PointViewMotionCtl : View {
 		.action_({ |nb|
 			var method = (whichRot ++ \_).asSymbol;
 			pv.perform(method, nb.value.degrad);
-			// sl.value_(
-			// 	slSpec.unmap(
-			// 		nb.value.wrap(slSpec.minval, slSpec.maxval)
-			// 	)
-			// );
-			// rotRadNb.value_(nb.value.degrad / pi);
-			// this.changed(\rotation, nb.value.degrad);
 		})
 		.clipLo_(specDeg.minval).clipHi_(specDeg.maxval)
 		.step_(0.2).scroll_step_(0.2)
@@ -292,11 +302,10 @@ PointViewMotionCtl : View {
 		.action_({ |nb|
 			var method = (whichRot ++ \Period_).asSymbol;
 			pv.perform(method, nb.value);
-			// this.changed(\cyclePeriod, nb.value);
 		})
 		.fixedWidth_("150.0".bounds.width * 1.2)
 		.clipLo_(0.01)
-		.align_(\center).decimals_(2)
+		.align_(\center).decimals_(1)
 		;
 
 		// oscillatory motion
@@ -304,19 +313,16 @@ PointViewMotionCtl : View {
 		.action_({ |nb|
 			var method = (whichRot ++ \OscPeriod_).asSymbol;
 			pv.perform(method, nb.value);
-			// this.changed(\oscPeriod, nb.value);
 		})
 		.fixedWidth_("150.0".bounds.width * 1.2)
 		.clipLo_(0.01)
-		.align_(\center).decimals_(2)
+		.align_(\center).decimals_(1)
 		;
 
 		oscCenRadNb = NumberBox()
 		.action_({ |nb|
 			var method = (whichRot ++ \OscCenter_).asSymbol;
 			pv.perform(method, nb.value * pi);
-			// this.changed(\oscCen, val);
-			// oscCenDegNb.value = val.raddeg;
 		})
 		.clipLo_(specRad.minval / pi).clipHi_(specRad.maxval / pi)
 		.step_(0.02).scroll_step_(0.02)
@@ -328,8 +334,6 @@ PointViewMotionCtl : View {
 		.action_({ |nb|
 			var method = (whichRot ++ \OscCenter_).asSymbol;
 			pv.perform(method, nb.value.degrad);
-			// this.changed(\oscCen, val);
-			// oscCenRadNb.value_(val / pi);
 		})
 		.clipLo_(specDeg.minval).clipHi_(specDeg.maxval)
 		.step_(0.2).scroll_step_(0.2)
@@ -343,8 +347,6 @@ PointViewMotionCtl : View {
 		.action_({ |nb|
 			var method = (whichRot ++ \OscWidth_).asSymbol;
 			pv.perform(method, nb.value * pi);
-			// this.changed(\oscWidth, val);
-			// oscWidthDegNb.value = val.raddeg;
 		})
 		.clipLo_(0).clipHi_(specRad.maxval / pi)
 		.step_(0.02).scroll_step_(0.02)
@@ -356,8 +358,6 @@ PointViewMotionCtl : View {
 		.action_({ |nb|
 			var method = (whichRot ++ \OscWidth_).asSymbol;
 			pv.perform(method, nb.value.degrad);
-			// this.changed(\oscWidth, val);
-			// oscWidthRadNb.value_(val / pi);
 		})
 		.clipLo_(0).clipHi_(specDeg.maxval)
 		.step_(0.2).scroll_step_(0.2)
@@ -371,7 +371,6 @@ PointViewMotionCtl : View {
 		.action_({ |cb|
 			var method = (whichRot ++ \Dir_).asSymbol;
 			pv.perform(method, if(cb.value, { -1 }, { 1 }));
-			// this.changed(\cycleInvert, cb.value.asBoolean)
 		})
 		;
 
@@ -385,24 +384,37 @@ PointViewMotionCtl : View {
 	background_ { |color|
 		[rotView, cycView, oscView, invView].do(_.background_(color));
 	}
+
 	background { ^rotView.background }
 
 	units_ { |radiansOrDegrees|
 		units = radiansOrDegrees;
 		switch (units,
 			\degrees, {
-				[rotDegNb, oscCenDegNb, oscWidthDegNb].do(_.visible_(true));
-				[rotRadNb, oscCenRadNb, oscWidthRadNb].do(_.visible_(false));
-				[rotLabel, oscCenLabel, oscWidthLabel].do(_.string_("deg"));
-				slLabelL.string_(slSpec.minval.raddeg.asInt.asString);
-				slLabelR.string_(slSpec.maxval.raddeg.asInt.asString);
+				[oscCenDegNb, oscWidthDegNb].do(_.visible_(true));
+				[oscCenRadNb, oscWidthRadNb].do(_.visible_(false));
+				[oscCenLabel, oscWidthLabel].do(_.string_("deg"));
+
+				if (whichRot != \all)  {
+					rotDegNb.visible = true;
+					rotRadNb.visible = false;
+					rotLabel.string_("deg");
+					slLabelL.string_(slSpec.minval.raddeg.asInt.asString);
+					slLabelR.string_(slSpec.maxval.raddeg.asInt.asString);
+				};
 			},
 			\radians, {
-				[rotRadNb, oscCenRadNb, oscWidthRadNb].do(_.visible_(true));
-				[rotDegNb, oscCenDegNb, oscWidthDegNb].do(_.visible_(false));
-				[rotLabel, oscCenLabel, oscWidthLabel].do(_.string_("π"));
-				slLabelL.string_((slSpec.minval / pi).round(0.1).asString ++ "π");
-				slLabelR.string_((slSpec.maxval / pi).round(0.1).asString ++ "π");
+				[oscCenRadNb, oscWidthRadNb].do(_.visible_(true));
+				[oscCenDegNb, oscWidthDegNb].do(_.visible_(false));
+				[oscCenLabel, oscWidthLabel].do(_.string_("π"));
+
+				if (whichRot != \all)  {
+					rotRadNb.visible = true;
+					rotDegNb.visible = false;
+					rotLabel.string_("π");
+					slLabelL.string_((slSpec.minval / pi).round(0.1).asString ++ "π");
+					slLabelR.string_((slSpec.maxval / pi).round(0.1).asString ++ "π");
+				};
 			}
 		);
 
@@ -416,17 +428,19 @@ PointViewMotionCtl : View {
 
 		// rotate view
 		rotView.layout_(
-			HLayout(
-				VLayout( // slider + labels layout
-					HLayout(
-						slLabelL, nil, slLabel, nil, slLabelR
+			if (whichRot == \all)  {
+				HLayout(nil, StaticText().string_("All").align_(\right))
+			} {
+				HLayout(
+					VLayout( // slider + labels layout
+						HLayout(slLabelL, nil, slLabel, nil, slLabelR),
+						sl
 					),
-					sl
-				),
-				rotRadNb, rotDegNb, // only one visible at a time
-				rotLabel,
-				nil
-			)
+					rotRadNb, rotDegNb, // only one visible at a time
+					rotLabel,
+					nil
+				)
+			}
 		);
 
 		// cycle view
@@ -451,8 +465,8 @@ PointViewMotionCtl : View {
 			)
 		);
 
-			// motion invert view
-			// cycle view
+		// motion invert view
+		// cycle view
 		invView.layout_(
 			HLayout(
 				[invChk, a: \center]
@@ -476,33 +490,43 @@ PointViewMotionCtl : View {
 
 		case
 		{who == pv} {
-			if (what == whichRot) { // rotation update
-				postf("% rotation changed: %\n", whichRot, args[0]);
-				val = args[0];
-				sl.value_(slSpec.unmap(val.wrap(slSpec.minval, slSpec.maxval*1.0001)));
-				rotRadNb.value = val / pi;
-				rotDegNb.value = val.raddeg;
-				^this
-			};
+			// if (what == whichRot) { // rotation value update
+			// 	val = args[0];
+			// 	sl.value_(slSpec.unmap(val.wrap(slSpec.minval, slSpec.maxval*1.0001)));
+			// 	rotRadNb.value = val / pi;
+			// 	rotDegNb.value = val.raddeg;
+			// 	^this // break
+			// };
+			// if (what == \units) {
+			// 	this.units_(args[0]);
+			// 	^this // break
+			// };
+
+			switch (what,
+				whichRot, { // rotation value update
+					val = args[0];
+					sl.value_(slSpec.unmap(val.wrap(slSpec.minval, slSpec.maxval*1.0001)));
+					rotRadNb.value = val / pi;
+					rotDegNb.value = val.raddeg;
+					^this // break
+				},
+				\units, {
+					this.units_(args[0]);
+					^this // break
+				},
+				\rotateMode, {
+					this.mode_(args[0]);
+					^this // break
+				}
+			);
 
 			if (args[0] == whichRot) {
-				postf("change on %, %: %\n", whichRot, what, args[1]);
 				switch (what,
-					\dir, {
-						invChk.value_(args[1].asBoolean.not)
-					},
-					\rate, {
-						cycPerNb.value_(args[1].reciprocal)
-					},
-					\auto, {
-
-					},
-					\osc, {
-
-					},
-					\oscPeriod, {
-						oscPerNb.value_(args[1]);
-					},
+					\dir,  { invChk.value_(args[1].asBoolean.not) },
+					\rate, { cycPerNb.value_(args[1].reciprocal) },
+					\auto, { },
+					\osc,  { },
+					\oscPeriod, { oscPerNb.value_(args[1]) },
 					\oscCenter, {
 						oscCenRadNb.value_(args[1] / pi);
 						oscCenDegNb.value_(args[1].raddeg);
@@ -510,7 +534,7 @@ PointViewMotionCtl : View {
 					\oscWidth, {
 						oscWidthRadNb.value_(args[1] / pi);
 						oscWidthDegNb.value_(args[1].raddeg);
-					},
+					}
 				)
 			}
 		}

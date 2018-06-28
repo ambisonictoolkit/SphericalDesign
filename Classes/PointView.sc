@@ -34,7 +34,7 @@ PointView : View {
 	var rotateMode = \rtt; // \rtt or \ypr
 
 	// views
-	var <userView, ctlView;
+	var <userView, <ctlView;
 
 	// interaction
 	var mouseDownPnt, mouseUpPnt, mouseMovePnt;
@@ -77,7 +77,7 @@ PointView : View {
 		this.updateCanvasDims;
 
 		// init controller view
-		ctlView = PointViewUI(this); //, Rect(5,5,200,this.bounds.height));
+		ctlView = PointViewUI(this, Rect(5, 5, 600, 400));
 		this.addDependant(ctlView);
 		ctlView.onClose({ this.removeDependant(ctlView) });
 
@@ -402,6 +402,9 @@ PointView : View {
 		tumbleStep = (tumbleRate / frameRate) * 2pi * tumbleDir;
 		this.changed(\dir, \tumble, tumbleDir);
 	}
+	allDir_ { |dir|
+		this.rotateDir_(dir).tiltDir_(dir).tumbleDir_(dir);
+	}
 
 	rotateRate_ { |hz|
 		rotateRate = hz;
@@ -418,10 +421,16 @@ PointView : View {
 		tumbleStep = (tumbleRate / frameRate) * 2pi * tumbleDir;
 		this.changed(\rate, \tumble, hz);
 	}
+	allRate_ { |hz|
+		this.rotateRate_(hz).tiltRate_(hz).tumbleRate_(hz);
+	}
 
 	rotatePeriod_ { |seconds| this.rotateRate_(seconds.reciprocal) }
 	tiltPeriod_   { |seconds| this.tiltRate_(seconds.reciprocal) }
 	tumblePeriod_ { |seconds| this.tumbleRate_(seconds.reciprocal) }
+	allPeriod_    { |seconds|
+		this.rotateRate_(seconds).tiltRate_(seconds).tumbleRate_(seconds)
+	}
 
 	rotatePeriod { ^rotateRate.reciprocal }
 	tiltPeriod   { ^tiltRate.reciprocal }
@@ -442,6 +451,10 @@ PointView : View {
 		bool.if{ oscTumble = false };
 		this.prCheckAnimate(\auto, \tumble, bool);
 	}
+	allAuto_ { |bool|
+		this.rotateAuto_(bool).tiltAuto_(bool).tumbleAuto_(bool);
+		this.changed(\allAuto, bool);
+	}
 
 	rotateOsc_ { |bool|
 		oscRotate = bool;
@@ -458,12 +471,16 @@ PointView : View {
 		bool.if{ autoTumble = false };
 		this.prCheckAnimate(\tumble, bool);
 	}
+	allOsc_ { |bool|
+		this.rotateOsc_(bool).tiltOsc_(bool).tumbleOsc_(bool);
+		this.changed(\allOsc, bool);
+	}
 
 	prCheckAnimate { |which, bool|
 		userView.animate_(
 			[   autoRotate, autoTilt, autoTumble,
 				oscRotate, oscTilt, oscTumble
-			].any({ |bool| bool });
+			].any({ |bool| bool })
 		);
 		this.changed(\osc, which, bool);
 	}
@@ -484,6 +501,9 @@ PointView : View {
 		tumbleOscPhsInc = 2pi / (seconds * frameRate);
 		this.changed(\oscPeriod, \tumble, seconds);
 	}
+	allOscPeriod_ { |seconds|
+		this.rotateOscPeriod_(seconds).tiltOscPeriod_(seconds).tumbleOscPeriod_(seconds);
+	}
 
 	rotateOscCenter_ { |cenRad|
 		rotateOscCenter = cenRad;
@@ -496,6 +516,9 @@ PointView : View {
 	tumbleOscCenter_ { |cenRad|
 		tumbleOscCenter = cenRad;
 		this.changed(\oscCenter, \tumble, cenRad)
+	}
+	allOscCenter_ { |cenRad|
+		this.rotateOscCenter_(cenRad).tiltOscCenter_(cenRad).tumbleOscCenter_(cenRad);
 	}
 
 	rotateOscWidth_  { |widthRad|
@@ -519,6 +542,9 @@ PointView : View {
 		this.changed(\oscWidth, \tumble, widthRad);
 		this.tumbleOscPeriod_(tumbleOscT * deltaFactor)
 	}
+	allOscWidth_ { |widthRad|
+		this.rotateOscWidth_(widthRad).tiltOscWidth_(widthRad).tumbleOscWidth_(widthRad);
+	}
 
 	rotateMode_ { |rttOrYpr|
 		rotateMode = rttOrYpr;
@@ -530,16 +556,19 @@ PointView : View {
 
 	showIndices_ { |bool|
 		showIndices = bool;
+		this.changed(\showIndices, bool);
 		this.refresh;
 	}
 
 	showAxes_ { |bool|
 		showAxes = bool;
+		this.changed(\showAxes, bool);
 		this.refresh;
 	}
 
 	showConnections_ { |bool|
 		showConnections = bool;
+		this.changed(\showConnections, bool);
 		this.refresh;
 	}
 
@@ -654,6 +683,11 @@ PointView : View {
 		if (prPntDrawCols.size != points.size) {
 
 		}
+	}
+
+	// for UI controls
+	units_ { |radiansOrDegrees|
+		this.changed(\units, radiansOrDegrees)
 	}
 
 
