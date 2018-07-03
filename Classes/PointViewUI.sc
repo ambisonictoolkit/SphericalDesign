@@ -4,9 +4,14 @@
 PointViewUI : View {
 	var pv; // PointView
 	var mstrLayout;
-	var settingView, labelView;
+	var settingView;
 	var rttChk, yprChk, radChk, degChk, cycChk, oscChk;
 	var indicesChk, axesChk, connChk;
+
+	var <settingWidth = 235;
+	var <cycleWidth = 95;
+	var <oscWidth = 210;
+	var <invWidth = 30;
 
 	*new { |pointView, bounds = (Rect(0,0, 700, 300))|
 		^super.new(pointView, bounds).init(pointView);
@@ -18,7 +23,7 @@ PointViewUI : View {
 		pv.addDependant(this);
 		this.onClose_({ pv.removeDependant(this) });
 
-		mstrLayout = VLayout().spacing_(2);
+		mstrLayout = VLayout().spacing_(4);
 		this.layout_(mstrLayout);
 		this.resize_(5);
 		this.background_(Color.green.alpha_(0.25));
@@ -28,9 +33,7 @@ PointViewUI : View {
 		;
 
 		yprChk = CheckBox()
-		.action_({ |cb|
-			pv.rotateMode_(if (cb.value) { \ypr } { \rtt })
-		})
+		.action_({ |cb| pv.rotateMode_(if (cb.value) { \ypr } { \rtt }) })
 		;
 
 		radChk = CheckBox()
@@ -61,7 +64,8 @@ PointViewUI : View {
 
 		settingView = View().layout_(
 			HLayout(
-				View().layout_(
+				// Convention / Units settings
+				View().fixedWidth_(settingWidth).layout_(
 					HLayout(
 						VLayout(
 							StaticText().string_("Convention"),
@@ -82,48 +86,55 @@ PointViewUI : View {
 							)
 						)
 					).margins_(0)
-				).fixedWidth_(235),
-				cycChk,
-				StaticText().string_("Cycle"),
-				40,
-				oscChk,
-				StaticText().string_("Oscillate"),
-				nil
-			)
-		);
-
-		labelView = View().layout_(
-			HLayout(
-				View().layout_(
-					// HLayout(
-					// 	nil,
-					// 	cycChk,
-					// 	StaticText().string_("Cycle"),
-					// 	oscChk,
-					// 	StaticText().string_("Oscillate"),
-					// 	15
-					// )
-				).fixedWidth_(235),
-				StaticText().string_("Period").align_(\left).fixedWidth_(95),
-				View().layout_(
-					HLayout(
-						StaticText().string_("Period").align_(\left),
-						StaticText().string_("Center").align_(\left),
-						StaticText().string_("Width").align_(\left),
-						nil
-					).margins_(0).spacing_(20)
-				).fixedWidth_(205),
-				StaticText().string_("Inv").align_(\left),
-			).spacing_(2)
+				).background_(Color.grey.alpha_(0.2)),
+				// Cycle settings
+				View().fixedWidth_(cycleWidth).layout_(
+					VLayout(
+						StaticText().string_(""),
+						HLayout(
+							cycChk,
+							StaticText().string_("Cycle").align_(\left),
+							nil
+						),
+						StaticText().string_("Period").align_(\left).fixedWidth_(95),
+					)
+				).background_(Color.grey.alpha_(0.2)),
+				// Oscillation settings
+				View().fixedWidth_(oscWidth).layout_(
+					VLayout(
+						StaticText().string_(""),
+						HLayout(
+							oscChk,
+							StaticText().string_("Oscillate").align_(\left),
+							nil
+						),
+						HLayout(
+							StaticText().string_("Period").align_(\left),
+							nil,
+							StaticText().string_("Center").align_(\left),
+							nil,
+							StaticText().string_("Width" ).align_(\left),
+							nil
+						)
+					)
+				).background_(Color.grey.alpha_(0.2)),
+				// Direction invert settings
+				View().fixedWidth_(invWidth).layout_(
+					VLayout(
+						nil,
+						StaticText().string_("Inv").align_(\center)
+					)
+				).background_(Color.grey.alpha_(0.2)),
+				nil // anchor views left
+			).margins_(0).spacing_(2),
 		);
 
 		[
 			settingView,
-			labelView,
-			PointViewMotionCtl( pv, \rotate, \rtt, \radians, pv.axisColors[2]),
-			PointViewMotionCtl( pv, \tilt,   \rtt, \radians, pv.axisColors[0]),
-			PointViewMotionCtl( pv, \tumble, \rtt, \radians, pv.axisColors[1]),
-			PointViewMotionCtl( pv, \all,    \rtt, \radians, Color.clear),
+			PointViewMotionCtl( pv, this, \rotate, \rtt, \radians, pv.axisColors[2]),
+			PointViewMotionCtl( pv, this, \tilt,   \rtt, \radians, pv.axisColors[0]),
+			PointViewMotionCtl( pv, this, \tumble, \rtt, \radians, pv.axisColors[1]),
+			PointViewMotionCtl( pv, this, \all,    \rtt, \radians, Color.clear),
 			nil
 		].do(mstrLayout.add(_));
 	}
@@ -137,16 +148,16 @@ PointViewUI : View {
 			switch (what,
 				\rotateMode, {
 					switch (args[0],
-						\rtt, { rttChk.value = true; yprChk.value = false },
+						\rtt, { rttChk.value = true;  yprChk.value = false },
 						\ypr, { rttChk.value = false; yprChk.value = true }
 					)
 				},
 				\showIndices, { indicesChk.value = args[0].asBoolean },
-				\showAxes, { axesChk.value = args[0].asBoolean },
+				\showAxes,    { axesChk.value = args[0].asBoolean },
 				\showConnections, { connChk.value = args[0].asBoolean },
 				\units, {
 					switch (args[0],
-						\radians, { radChk.value = true; degChk.value = false },
+						\radians, { radChk.value = true;  degChk.value = false },
 						\degrees, { radChk.value = false; degChk.value = true }
 					)
 				},
@@ -172,7 +183,7 @@ PointViewUI : View {
 
 PointViewMotionCtl : View {
 
-	var pv, mode, whichRot, units, specRad, specDeg, slSpec;
+	var pv, pvui, rmode, whichRot, units, specRad, specDeg, slSpec;
 
 	// ui elements
 	// primary rotation
@@ -188,14 +199,15 @@ PointViewMotionCtl : View {
 	// views
 	var rotView, cycView, oscView, invView;
 
-	*new { |pv, whichRotation = \rotate, mode = \rtt, units = \radians, color, parent, bounds|
-		^super.new(parent, bounds).init(pv, mode, whichRotation, units, color);
+	*new { |pv, pvui, whichRotation = \rotate, rotateMode = \rtt, units = \radians, color, parent, bounds|
+		^super.new(parent, bounds).init(pv, pvui, rotateMode, whichRotation, units, color);
 	}
 
-	init { |argPv, argMode, argWhichRot, argUnits, color|
+	init { |argPv, argPvUI, argMode, argWhichRot, argUnits, color|
 
 		pv = argPv;
-		mode = argMode;
+		pvui = argPvUI;
+		rmode = argMode;
 		units = argUnits;
 
 		pv.addDependant(this);
@@ -223,20 +235,21 @@ PointViewMotionCtl : View {
 			\tumble, { [pi.neg, pi] / 2 }
 		).asSpec;
 
+		this.resize_(5);
 		this.initWidgets;
-		this.mode_(mode);
+		this.rotateMode_(rmode);
 		this.layItOut;
 		this.units_(units);
 		color !? { this.background_(color) };
 	}
 
-	mode_ { |rttOrYpr|
+	rotateMode_ { |rttOrYpr|
 		var str;
 
 		if (whichRot != \all) {
 
-			mode = rttOrYpr.asSymbol;
-			str = switch (mode,
+			rmode = rttOrYpr.asSymbol;
+			str = switch (rmode,
 				\rtt, {
 					str = whichRot.asString;
 					str[0].toUpper ++ str.drop(1);
@@ -267,7 +280,7 @@ PointViewMotionCtl : View {
 		.minWidth_(150).maxHeight_(20)
 		;
 
-		// slider labels, set in .mode_
+		// slider labels, set in -rotateMode_
 		slLabel  = StaticText();
 		slLabelL = StaticText();
 		slLabelR = StaticText();
@@ -421,10 +434,10 @@ PointViewMotionCtl : View {
 	}
 
 	layItOut {
-		rotView = View().fixedHeight_(60).fixedWidth_(235);
-		cycView = View().fixedHeight_(60).fixedWidth_(95);
-		oscView = View().fixedHeight_(60).fixedWidth_(210);
-		invView = View().fixedHeight_(60).fixedWidth_(30);
+		rotView = View().fixedHeight_(50).fixedWidth_(pvui.settingWidth);
+		cycView = View().fixedHeight_(50).fixedWidth_(pvui.cycleWidth);
+		oscView = View().fixedHeight_(50).fixedWidth_(pvui.oscWidth);
+		invView = View().fixedHeight_(50).fixedWidth_(pvui.invWidth);
 
 		// rotate view
 		rotView.layout_(
@@ -436,8 +449,13 @@ PointViewMotionCtl : View {
 						HLayout(slLabelL, nil, slLabel, nil, slLabelR),
 						sl
 					),
-					rotRadNb, rotDegNb, // only one visible at a time
-					rotLabel,
+					VLayout(
+						nil,
+						HLayout(
+							rotRadNb, rotDegNb, // only one visible at a time
+							rotLabel,
+						)
+					),
 					nil
 				)
 			}
@@ -515,7 +533,7 @@ PointViewMotionCtl : View {
 					^this // break
 				},
 				\rotateMode, {
-					this.mode_(args[0]);
+					this.rotateMode_(args[0]);
 					^this // break
 				}
 			);
