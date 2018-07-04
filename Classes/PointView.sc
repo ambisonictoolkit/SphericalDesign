@@ -18,20 +18,22 @@ PointView : View {
 	var <pointSize = 15, <pointDistScale = 0.333;
 
 	// movement
-	var <rotate = 0, <tilt = 0, <tumble = 0; // radians
+	var <baseRotation = 0, <baseTilt = 0, <baseTumble = 0; // radians
+	var <rotate = 0, <tilt = 0, <tumble = 0; // radians, rotations after any movement offsets are applied
 	var <rotateRate = 0.05, <tiltRate = 0.05, <tumbleRate = 0.05; // Hz
-	var <rotateStep, tiltStep, tumbleStep; // radians
+	var <rotateStep, tiltStep, tumbleStep;   // radians
 	var <rotateDir = 1, <tiltDir  = 1, <tumbleDir = 1; // +/-1
 	var <autoRotate = false, <autoTumble = false, <autoTilt = false;
 	var <oscRotate = false, <oscTumble = false, <oscTilt = false;
 	var rotateOscT, rotateOscPhsInc;
 	var tiltOscT, tiltOscPhsInc;
 	var tumbleOscT, tumbleOscPhsInc;
-	var rotateOscCenter, rotateOscWidth;
-	var tiltOscCenter, tiltOscWidth;
-	var tumbleOscCenter, tumbleOscWidth;
+	// var rotateOscCenter, tiltOscCenter, tumbleOscCenter;
+	var rotateOscWidth, tiltOscWidth, tumbleOscWidth;
 	var rotatePhase = 0, tiltPhase = 0, tumblePhase = 0; // phase index into the rotation oscillators
 	var rotateMode = \rtt; // \rtt or \ypr
+	var <randomizedAxes;   // dictionary of booleans for randomize state of each axis
+	var <>randomVariance = 0.1;
 
 	// views
 	var <userView, <ctlView;
@@ -63,6 +65,11 @@ PointView : View {
 		// init draw colors
 		prPntDrawCols = [Color.hsv(0,1,1,1), Color.hsv(0.999,1,1,1)];
 		colsByHue = true;
+		randomizedAxes = IdentityDictionary().putPairs([
+			\rotate, false,
+			\tilt,   false,
+			\tumble, false
+		]);
 
 		// init rotation variables
 		this.rotateRate_(rotateRate);
@@ -85,7 +92,7 @@ PointView : View {
 		this.rotateOscPeriod_(this.rotatePeriod * (initOscWidth/pi));
 		this.tiltOscPeriod_(this.tiltPeriod * (initOscWidth/pi));
 		this.tumbleOscPeriod_(this.tumblePeriod * (initOscWidth/pi));
-		rotateOscCenter = tiltOscCenter = tumbleOscCenter = 0;
+		// rotateOscCenter = tiltOscCenter = tumbleOscCenter = 0;
 		tumbleOscWidth = tiltOscWidth = rotateOscWidth = initOscWidth;
 
 		this.rotateMode_(rotateMode);
@@ -144,6 +151,8 @@ PointView : View {
 			var rotPnts, to2D, incStep;
 			var strRect;
 			var minPntSize;
+			var rrand;
+			var variance;
 
 			minPntSize = pointSize * pointDistScale;
 			scale = minDim.half;
@@ -180,24 +189,45 @@ PointView : View {
 				}
 			};
 
+			variance = { |bool|
+				if (bool) { 1 + rrand(randomVariance.neg, randomVariance) } { 1 }
+			};
+
 			// if rotating
-			incStep = { |rotation, step| (rotation + step).wrap(-2pi, 2pi) };
-			if (autoRotate) { rotate = incStep.(rotate, rotateStep) };
-			if (autoTilt) { tilt = incStep.(tilt, tiltStep) };
-			if (autoTumble) { tumble = incStep.(tumble, tumbleStep) };
+			incStep = { |rand, curRot, step|
+				(curRot + (step * variance.(rand))).wrap(-2pi, 2pi)
+			};
+
+			rotate = if (autoRotate) {
+				incStep.(randomizedAxes.rotate, rotate, rotateStep)
+			} { baseRotation };
+
+			tilt = if (autoTilt) {
+				incStep.(randomizedAxes.tilt,   tilt,   tiltStep)
+			} { baseTilt };
+
+			tumble = if (autoTumble) {
+				incStep.(randomizedAxes.tumble, tumble, tumbleStep)
+			} { baseTumble };
 
 			// if oscillating
 			if (oscRotate) {
-				rotatePhase = (rotatePhase + (rotateOscPhsInc * rotateDir)) % 2pi;
-				rotate = sin(rotatePhase) * 0.5 * rotateOscWidth + rotateOscCenter;
+				rotatePhase = ( // 0 to 2pi
+					rotatePhase + (rotateOscPhsInc * variance.(randomizedAxes.rotate) * rotateDir)
+				) % 2pi;
+				rotate = sin(rotatePhase) * 0.5 * rotateOscWidth + baseRotation; //rotateOscCenter;
 			};
 			if (oscTilt) {
-				tiltPhase = (tiltPhase + (tiltOscPhsInc * tiltDir)) % 2pi;
-				tilt = sin(tiltPhase) * 0.5 * tiltOscWidth + tiltOscCenter;
+				tiltPhase = (
+					tiltPhase + (tiltOscPhsInc * variance.(randomizedAxes.tilt) * tiltDir)
+				) % 2pi;
+				tilt = sin(tiltPhase) * 0.5 * tiltOscWidth + baseTilt; //tiltOscCenter;
 			};
 			if (oscTumble) {
-				tumblePhase = (tumblePhase + (tumbleOscPhsInc * tumbleDir)) % 2pi;
-				tumble = sin(tumblePhase) * 0.5 * tumbleOscWidth + tumbleOscCenter;
+				tumblePhase = (
+					tumblePhase + (tumbleOscPhsInc * variance.(randomizedAxes.tumble) * tumbleDir)
+				) % 2pi;
+				tumble = sin(tumblePhase) * 0.5 * tumbleOscWidth + baseTumble; //tumbleOscCenter;
 			};
 
 
@@ -368,19 +398,19 @@ PointView : View {
 	/* View movement controls */
 
 	rotate_ { |radians|
-		rotate = radians;
+		baseRotation = radians;
 		autoRotate = false;
 		this.refresh;
 		this.changed(\rotate, radians);
 	}
 	tilt_ { |radians|
-		tilt = radians;
+		baseTilt = radians;
 		autoTilt = false;
 		this.refresh;
 		this.changed(\tilt, radians);
 	}
 	tumble_ { |radians|
-		tumble = radians;
+		baseTumble = radians;
 		autoTumble = false;
 		this.refresh;
 		this.changed(\tumble, radians);
@@ -390,17 +420,17 @@ PointView : View {
 	rotateDir_ { |dir|
 		rotateDir = dir;
 		rotateStep = (rotateRate / frameRate) * 2pi * rotateDir;
-		this.changed(\dir, \rotate, rotateDir);
+		this.changed(\rotateDir, rotateDir);
 	}
 	tiltDir_ { |dir|
 		tiltDir = dir;
 		tiltStep = (tiltRate / frameRate) * 2pi * tiltDir;
-		this.changed(\dir, \tilt, tiltDir);
+		this.changed(\tiltDir, tiltDir);
 	}
 	tumbleDir_ { |dir|
 		tumbleDir = dir;
 		tumbleStep = (tumbleRate / frameRate) * 2pi * tumbleDir;
-		this.changed(\dir, \tumble, tumbleDir);
+		this.changed(\tumbleDir, tumbleDir);
 	}
 	allDir_ { |dir|
 		this.rotateDir_(dir).tiltDir_(dir).tumbleDir_(dir);
@@ -505,21 +535,21 @@ PointView : View {
 		this.rotateOscPeriod_(seconds).tiltOscPeriod_(seconds).tumbleOscPeriod_(seconds);
 	}
 
-	rotateOscCenter_ { |cenRad|
-		rotateOscCenter = cenRad;
-		this.changed(\oscCenter, \rotate, cenRad)
-	}
-	tiltOscCenter_ { |cenRad|
-		tiltOscCenter = cenRad;
-		this.changed(\oscCenter, \tilt, cenRad)
-	}
-	tumbleOscCenter_ { |cenRad|
-		tumbleOscCenter = cenRad;
-		this.changed(\oscCenter, \tumble, cenRad)
-	}
-	allOscCenter_ { |cenRad|
-		this.rotateOscCenter_(cenRad).tiltOscCenter_(cenRad).tumbleOscCenter_(cenRad);
-	}
+	// rotateOscCenter_ { |cenRad|
+	// 	rotateOscCenter = cenRad;
+	// 	this.changed(\oscCenter, \rotate, cenRad)
+	// }
+	// tiltOscCenter_ { |cenRad|
+	// 	tiltOscCenter = cenRad;
+	// 	this.changed(\oscCenter, \tilt, cenRad)
+	// }
+	// tumbleOscCenter_ { |cenRad|
+	// 	tumbleOscCenter = cenRad;
+	// 	this.changed(\oscCenter, \tumble, cenRad)
+	// }
+	// allOscCenter_ { |cenRad|
+	// 	this.rotateOscCenter_(cenRad).tiltOscCenter_(cenRad).tumbleOscCenter_(cenRad);
+	// }
 
 	rotateOscWidth_  { |widthRad|
 		var deltaFactor;
@@ -550,6 +580,10 @@ PointView : View {
 		rotateMode = rttOrYpr;
 		this.changed(\rotateMode, rotateMode);
 		this.refresh;
+	}
+
+	varyMotion_ { |axis, bool|
+		randomizedAxes[axis] = bool;
 	}
 
 	/* Display controls */
