@@ -33,7 +33,7 @@ PointView : View {
 	var rotatePhase = 0, tiltPhase = 0, tumblePhase = 0; // phase index into the rotation oscillators
 	var rotateMode = \rtt; // \rtt or \ypr
 	var <randomizedAxes;   // dictionary of booleans for randomize state of each axis
-	var <>randomVariance = 0.1;
+	var <>randomVariance = 0.15;
 
 	// views
 	var <userView, <ctlView;
@@ -65,7 +65,7 @@ PointView : View {
 		// init draw colors
 		prPntDrawCols = [Color.hsv(0,1,1,1), Color.hsv(0.999,1,1,1)];
 		colsByHue = true;
-		randomizedAxes = IdentityDictionary().putPairs([
+		randomizedAxes = IdentityDictionary(know: true).putPairs([
 			\rotate, false,
 			\tilt,   false,
 			\tumble, false
@@ -213,19 +213,22 @@ PointView : View {
 			// if oscillating
 			if (oscRotate) {
 				rotatePhase = ( // 0 to 2pi
-					rotatePhase + (rotateOscPhsInc * variance.(randomizedAxes.rotate) * rotateDir)
+					// rotatePhase + (rotateOscPhsInc * variance.(randomizedAxes.rotate) * rotateDir)
+					rotatePhase + (rotateOscPhsInc * rotateDir)
 				) % 2pi;
 				rotate = sin(rotatePhase) * 0.5 * rotateOscWidth + baseRotation; //rotateOscCenter;
 			};
 			if (oscTilt) {
 				tiltPhase = (
-					tiltPhase + (tiltOscPhsInc * variance.(randomizedAxes.tilt) * tiltDir)
+					// tiltPhase + (tiltOscPhsInc * variance.(randomizedAxes.tilt) * tiltDir)
+					tiltPhase + (tiltOscPhsInc * tiltDir)
 				) % 2pi;
 				tilt = sin(tiltPhase) * 0.5 * tiltOscWidth + baseTilt; //tiltOscCenter;
 			};
 			if (oscTumble) {
 				tumblePhase = (
-					tumblePhase + (tumbleOscPhsInc * variance.(randomizedAxes.tumble) * tumbleDir)
+					// tumblePhase + (tumbleOscPhsInc * variance.(randomizedAxes.tumble) * tumbleDir)
+					tumblePhase + (tumbleOscPhsInc * tumbleDir)
 				) % 2pi;
 				tumble = sin(tumblePhase) * 0.5 * tumbleOscWidth + baseTumble; //tumbleOscCenter;
 			};
@@ -519,17 +522,26 @@ PointView : View {
 	rotateOscPeriod_ { |seconds|
 		rotateOscT = seconds;
 		rotateOscPhsInc = 2pi / (seconds * frameRate);
-		this.changed(\oscPeriod, \rotate, seconds);
+		if (randomizedAxes.rotate) {
+			rotateOscPhsInc = rotateOscPhsInc * (1 + rrand(0.05, randomVariance))
+		};
+		this.changed(\oscRotatePeriod, seconds);
 	}
 	tiltOscPeriod_ { |seconds|
 		tiltOscT = seconds;
 		tiltOscPhsInc = 2pi / (seconds * frameRate);
-		this.changed(\oscPeriod, \tilt, seconds);
+		if (randomizedAxes.tilt) {
+			tiltOscPhsInc = tiltOscPhsInc * (1 + rrand(0.05, randomVariance))
+		};
+		this.changed(\oscTiltPeriod, seconds);
 	}
 	tumbleOscPeriod_ { |seconds|
 		tumbleOscT = seconds;
 		tumbleOscPhsInc = 2pi / (seconds * frameRate);
-		this.changed(\oscPeriod, \tumble, seconds);
+		if (randomizedAxes.tumble) {
+			tumbleOscPhsInc = tumbleOscPhsInc * (1 + rrand(0.05, randomVariance))
+		};
+		this.changed(\oscTumblePeriod, seconds);
 	}
 	allOscPeriod_ { |seconds|
 		this.rotateOscPeriod_(seconds).tiltOscPeriod_(seconds).tumbleOscPeriod_(seconds);
@@ -552,25 +564,25 @@ PointView : View {
 	// }
 
 	rotateOscWidth_  { |widthRad|
-		var deltaFactor;
-		deltaFactor = widthRad / rotateOscWidth;
+		// var deltaFactor;
+		// deltaFactor = widthRad / rotateOscWidth;
 		rotateOscWidth = widthRad;
-		this.changed(\oscWidth, \rotate, widthRad);
-		this.rotateOscPeriod_(rotateOscT * deltaFactor)
+		this.changed(\oscRotateWidth, widthRad);
+		// this.rotateOscPeriod_(rotateOscT * deltaFactor)
 	}
 	tiltOscWidth_  { |widthRad|
-		var deltaFactor;
-		deltaFactor = widthRad / tiltOscWidth;
+		// var deltaFactor;
+		// deltaFactor = widthRad / tiltOscWidth;
 		tiltOscWidth = widthRad;
-		this.changed(\oscWidth, \tilt, widthRad);
-		this.tiltOscPeriod_(tiltOscT * deltaFactor)
+		this.changed(\oscTiltWidth, widthRad);
+		// this.tiltOscPeriod_(tiltOscT * deltaFactor)
 	}
 	tumbleOscWidth_  { |widthRad|
-		var deltaFactor;
-		deltaFactor = widthRad / tumbleOscWidth;
+		// var deltaFactor;
+		// deltaFactor = widthRad / tumbleOscWidth;
 		tumbleOscWidth = widthRad;
-		this.changed(\oscWidth, \tumble, widthRad);
-		this.tumbleOscPeriod_(tumbleOscT * deltaFactor)
+		this.changed(\oscTumbleWidth, widthRad);
+		// this.tumbleOscPeriod_(tumbleOscT * deltaFactor)
 	}
 	allOscWidth_ { |widthRad|
 		this.rotateOscWidth_(widthRad).tiltOscWidth_(widthRad).tumbleOscWidth_(widthRad);
@@ -584,6 +596,10 @@ PointView : View {
 
 	varyMotion_ { |axis, bool|
 		randomizedAxes[axis] = bool;
+		// update osc periods
+		this.rotateOscPeriod_(rotateOscT);
+		this.tiltOscPeriod_(tiltOscT);
+		this.tumbleOscPeriod_(tumbleOscT);
 	}
 
 	/* Display controls */
