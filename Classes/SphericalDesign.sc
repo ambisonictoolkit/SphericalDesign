@@ -71,6 +71,33 @@ SphericalDesign {
 		this.changed(\points)
 	}
 
+	nearestAngles { |theta = 0, phi = 0|
+		^points.collect{arg point; this.vec_angle(Spherical(1, theta, phi), point)}
+	}
+
+	nearestAngle { |theta = 0, phi = 0|
+		^this.nearestAngles(theta, phi).minItem
+	}
+
+	nearestAngleIndex { |theta = 0, phi = 0|
+		^this.nearestAngles(theta, phi).minIndex
+	}
+
+	nearestPoint { |theta = 0, phi = 0|
+		^points[this.nearestAngleIndex(theta, phi)]
+	}
+
+	resetOrientation { |orientation = 'point', tilt = nil|
+		var theta, phi;
+		case
+		{orientation == 'point'} {
+			#theta, phi = this.nearestPoint.angles;
+			this.tumble(phi.neg);
+			this.rotate(theta.neg);
+			tilt.notNil.if({this.tilt(tilt)})
+		}
+	}
+
 	directions { ^points.collect(_.asSpherical) }
 
 	numPoints { ^points.size }
@@ -167,12 +194,12 @@ TDesignLib {
 	classvar <lib;   // Array of designs, stored as Dictionaries
 	classvar <>path;
 	// TODO: resolve default path
-	classvar <defaultPath = "/Users/admin/Library/Application Support/ATK/t-designs/";
+	classvar <defaultPath = "~/Library/Application Support/ATK/t-designs/";
 
 	*initLib {
 		var pn, dim, nPnts, t;
 
-		this.path ?? {this.path = defaultPath};
+		this.path ?? {this.path = defaultPath.standardizePath};
 
 		if (File.exists(path)) {
 			pn = PathName(path);
