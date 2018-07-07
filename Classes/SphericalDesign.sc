@@ -71,30 +71,96 @@ SphericalDesign {
 		this.changed(\points)
 	}
 
-	nearestAngles { |theta = 0, phi = 0|
+	findAngles { |theta = 0, phi = 0|
 		^points.collect{arg point; this.vec_angle(Spherical(1, theta, phi), point)}
 	}
 
 	nearestAngle { |theta = 0, phi = 0|
-		^this.nearestAngles(theta, phi).minItem
+		^this.findAngles(theta, phi).minItem
 	}
 
-	nearestAngleIndex { |theta = 0, phi = 0|
-		^this.nearestAngles(theta, phi).minIndex
+	nearestIndex { |theta = 0, phi = 0|
+		^this.findAngles(theta, phi).minIndex
 	}
 
 	nearestPoint { |theta = 0, phi = 0|
-		^points[this.nearestAngleIndex(theta, phi)]
+		^points[this.nearestIndex(theta, phi)]
 	}
 
-	resetOrientation { |orientation = 'point', tilt = nil|
-		var theta, phi;
+	oppositeIndex { |point|
+		^this.nearestIndex((point.theta + pi).mod(2pi), point.phi.neg)
+	}
+
+	oppositePoint { |point|
+		^points[this.oppositeIndex(point)]
+	}
+
+	oppositePairsIndices {
+		var results, opposites;
+		opposites = Array.new;
+
+		points.do{|point, index|
+			opposites = opposites.add([index, this.oppositeIndex(point)])
+		};
+
+		opposites.postln;
+
+		results = Array.new;
+
+		opposites.do({ |item|
+			var test = true;
+			results.do({ |result|
+				((result == item) or: (result == item.reverse)).if({
+					test = false;
+				})
+			});
+			test.if({results = results.add(item)});
+		});
+
+		^results.sort({|a, b| a[0] < b[0]})
+	}
+
+	resetOrientation { |theta = 0, phi = 0, orientation = 'point'|
+		var nearestTheta, nearestPhi;
 		case
 		{orientation == 'point'} {
-			#theta, phi = this.nearestPoint.angles;
-			this.tumble(phi.neg);
-			this.rotate(theta.neg);
-			tilt.notNil.if({this.tilt(tilt)})
+			#nearestTheta, nearestPhi = this.nearestPoint(theta, phi).angles;
+			this.rotate(nearestTheta.neg);
+			this.tumble(nearestPhi.neg);
+			this.tumble(phi);
+			this.rotate(theta);
+		}
+	}
+
+	nearestIndices { |theta = 0, phi = 0, spread = 0.5pi, inclusive = true|
+		var lessThan;
+		inclusive.if({lessThan = '<='}, {lessThan = '<'});
+		^this.findAngles(theta, phi).selectIndices({|angle|
+			angle.perform(lessThan, spread.half)
+		})
+	}
+
+	nearestPoints { |theta = 0, phi = 0, spread = 0.5pi, inclusive = true|
+		var lessThan;
+		inclusive.if({lessThan = '<='}, {lessThan = '<'});
+		^this.points.select({|point|
+			this.vec_angle(Spherical(1, theta, phi), point).perform(lessThan, spread.half)
+		})
+	}
+
+	nearestIndicesOrder { |theta = 0, phi = 0, spread = 0.5pi, inclusive = true|
+		^this.nearestIndices(theta, phi, spread, inclusive)[this.findAngles(theta, phi)[this.nearestIndices(theta, phi, spread, inclusive)].order]
+	}
+
+	nearestPointsOrder { |theta = 0, phi = 0, spread = 0.5pi, inclusive = true|
+		^points[this.nearestIndicesOrder(theta, phi, spread, inclusive)]
+	}
+
+	findSubset { |numPoints|
+		var newTDesign;
+		newTDesign = TDesign.new(numPoints);
+		^newTDesign.points.collect{|point|
+			this.nearestPoint(point.theta, point.phi)
 		}
 	}
 
