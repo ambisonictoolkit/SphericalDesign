@@ -4,9 +4,10 @@
 PointViewUI : View {
 	var pv; // PointView
 	var mstrLayout;
-	var conventionView, oscView, rttView, optionView, widthView;
+	var conventionView, oscView, rttView, varyMotionView, periodView, widthView;
 	var rttChk, yprChk, radChk, degChk, cycChk, oscChk;
 	var indicesChk, axesChk, connChk;
+	var units = \degrees;
 
 	// cyclic motion
 	var perNb, perSl;
@@ -19,16 +20,12 @@ PointViewUI : View {
 	var oscWidthSl;
 	var <radianCtls; // Dict of controls with radian/degree units, e.g. rotate, tilt...
 
-	var <settingWidth = 235;
-	var <cycleWidth = 95;
-	var <oscWidth = 210;
-	var <invWidth = 30;
-
-	*new { |pointView, bounds = (Rect(0,0, 700, 300))|
+	*new { |pointView, bounds = (Rect(0,0, 250, 800))|
 		^super.new(pointView, bounds).init(pointView);
 	}
 
 	init { |pointView|
+		var nbWidth = "-360.0".bounds.width * 1.2;
 
 		pv = pointView;
 		pv.addDependant(this);
@@ -41,9 +38,11 @@ PointViewUI : View {
 
 		rttChk = CheckBox()
 		.action_({ |cb| pv.rotateMode_(if (cb.value) { \rtt } { \ypr }) })
+		.value_(pv.rotateMode == \rtt)
 		;
 		yprChk = CheckBox()
 		.action_({ |cb| pv.rotateMode_(if (cb.value) { \ypr } { \rtt }) })
+		.value_(pv.rotateMode == \ypr)
 		;
 
 		radChk = CheckBox()
@@ -78,12 +77,13 @@ PointViewUI : View {
 				\rotateOscPeriod_, \tiltOscPeriod_, \tumbleOscPeriod_
 			].do({ |meth|
 				pv.perform(meth, nb.value);
-				perSl.value = nb.value.curvelin(0.5, 30, 0, 1, 4);
+				perSl.value = nb.value.curvelin(0.5, 45, 0, 1, 4);
 			})
 		})
-		.fixedWidth_("150.0".bounds.width * 1.2)
+		.fixedWidth_(nbWidth)
 		.clipLo_(0.01)
 		.align_(\center).decimals_(1)
+		.value_(pv.rotatePeriod)
 		;
 
 		perSl = Slider()
@@ -93,12 +93,14 @@ PointViewUI : View {
 				\rotatePeriod_, \tiltPeriod_, \tumblePeriod_,
 				\rotateOscPeriod_, \tiltOscPeriod_, \tumbleOscPeriod_
 			].do({ |meth|
-				val = sl.value.lincurve(0, 1, 0.5, 30, 4);
-				pv.perform(meth, val);
+				val = sl.value.lincurve(0, 1, 0.5, 45, 4);
+				pv.perform(meth, val); // sets both osc and cyc period
 				perNb.value = val;
 			})
 		})
 		.orientation_(\horizontal)
+		.fixedHeight_(25)
+		.value_(pv.rotatePeriod.curvelin(0.5, 45, 0, 1, 4))
 		;
 
 		oscWidthRadNb = NumberBox()
@@ -113,8 +115,9 @@ PointViewUI : View {
 		})
 		.clipLo_(0).clipHi_(2)
 		.step_(0.05).scroll_step_(0.05)
-		.fixedWidth_("-2.00".bounds.width * 1.2)
+		.fixedWidth_(nbWidth)
 		.align_(\center).decimals_(2)
+		.value_(pv.rotateOscWidth / pi)
 		;
 
 		oscWidthDegNb = NumberBox()
@@ -129,8 +132,9 @@ PointViewUI : View {
 		})
 		.clipLo_(0).clipHi_(360)
 		.step_(1).scroll_step_(1)
-		.fixedWidth_("360".bounds.width * 1.2)
+		.fixedWidth_(nbWidth)
 		.align_(\center).decimals_(0)
+		.value_(pv.rotateOscWidth.raddeg)
 		;
 
 		oscWidthSl = Slider()
@@ -146,9 +150,11 @@ PointViewUI : View {
 			})
 		})
 		.orientation_(\horizontal)
+		.fixedHeight_(25)
+		.value_(pv.rotateOscWidth.curvelin(0, 2pi, 0, 1, 4.3))
 		;
 
-		oscWidthLabel = StaticText().string_("π");
+		oscWidthLabel = StaticText().string_("π").fixedWidth_("deg".bounds.width * 1.2);
 
 		varyAllChk = CheckBox().action_({ |cb|
 			[varyRotateChk, varyTiltChk, varyTumbleChk].do(_.valueAction_(cb.value))
@@ -205,88 +211,51 @@ PointViewUI : View {
 			)
 		]);
 
+		pv.units_(units);
 		this.layItOut;
+		pv.allAuto_(false).allOsc_(false);
 	}
 
 	layItOut {
 		conventionView = View().layout_(
 			VLayout(
 				// Convention / Units settings
-				View().fixedWidth_(settingWidth).layout_(
+				View().layout_(
 					HLayout(
-						VLayout(
-							StaticText().string_("Convention"),
-							HLayout(
-								rttChk, StaticText().string_("RTT"), nil
-							),
-							HLayout(
-								yprChk, StaticText().string_("YPR"), nil
-							)
+						StaticText().string_("Convention").font_(Font.default.bold_(true)),
+						HLayout(
+							rttChk, StaticText().string_("RTT"), nil
 						),
-						VLayout(
-							StaticText().string_("Units"),
-							HLayout(
-								radChk, StaticText().string_("Radians"), nil
-							),
-							HLayout(
-								degChk, StaticText().string_("Degrees"), nil
-							)
+						HLayout(
+							yprChk, StaticText().string_("YPR"), nil
+						),
+						nil, nil, nil,
+
+						StaticText().string_("Units").font_(Font.default.bold_(true)),
+						HLayout(
+							radChk, StaticText().string_("Radians"), nil
+						),
+						HLayout(
+							degChk, StaticText().string_("Degrees"), nil
 						)
-					).margins_(0)
+					).margins_(0).spacing_(5)
 				).background_(Color.grey.alpha_(0.2))
-			)
+			).margins_(0)
 		);
 
 		rttView = View().layout_(
 			VLayout(
-				radianCtls.rotate,
-				radianCtls.tilt,
-				radianCtls.tumble,
-			)
+				radianCtls.rotate.fixedHeight_(70),
+				radianCtls.tilt.fixedHeight_(70),
+				radianCtls.tumble.fixedHeight_(70),
+			).margins_(0)
 		).background_(Color.gray.alpha_(0.5));
 
-		oscView = View().layout_(
+		varyMotionView = View().layout_(
 			VLayout(
 				HLayout(
-					cycChk,
-					StaticText().string_("Cycle").align_(\left),
-					nil,
-					oscChk,
-					StaticText().string_("Oscillate").align_(\left),
-					nil
-				),
-				View().layout_(
-					VLayout(
-						HLayout(
-							StaticText().string_("Period").align_(\left),
-							nil,
-							perNb,
-							StaticText().string_("s").align_(\left),
-						),
-						perSl
-					)
-				),
-				widthView = View().layout_(
-					VLayout(
-						HLayout(
-							StaticText().string_("Width").align_(\left),
-							nil,
-							oscWidthRadNb, oscWidthDegNb, // only one visible at a time: change to one numbox with switch in action?
-							oscWidthLabel
-						),
-						oscWidthSl
-					)
-				),
-			)
-		).background_(Color.gray.alpha_(0.5));
-
-		optionView = View().layout_(
-			VLayout(
-				HLayout(
-					VLayout(
-						StaticText().string_("Vary\nAxes").align_(\center),
-						CheckBox()
-					),
+					StaticText().string_("Vary\nAxes")
+					.align_(\center).fixedWidth_(55).font_(Font.default.bold_(true)),
 					VLayout(
 						nil,
 						HLayout(
@@ -307,11 +276,10 @@ PointViewUI : View {
 						),
 					)
 				).spacing_(10),
+				20,
 				HLayout(
-					VLayout(
-						StaticText().string_("Invert\nMotion").align_(\center),
-						CheckBox()
-					),
+					StaticText().string_("Invert\nMotion")
+					.align_(\center).fixedWidth_(55).font_(Font.default.bold_(true)),
 					VLayout(
 						nil,
 						HLayout(
@@ -335,10 +303,48 @@ PointViewUI : View {
 			).margins_(0).spacing_(2),
 		).background_(Color.gray.alpha_(0.5));
 
+		oscView = View().layout_(
+			VLayout(
+				HLayout(
+					oscChk,
+					StaticText().string_("Oscillate").align_(\left).font_(Font.default.bold_(true)),
+					15,
+					cycChk,
+					StaticText().string_("Cycle").align_(\left).font_(Font.default.bold_(true)),
+					nil
+				),
+				periodView = View().layout_(
+					VLayout(
+						HLayout(
+							StaticText().string_("Period").align_(\left),
+							nil,
+							perNb,
+							StaticText().string_("s").align_(\left).fixedWidth_("deg".bounds.width * 1.2),
+						),
+						perSl
+					).margins_(0)
+				).fixedHeight_(55),
+
+				widthView = View().layout_(
+					VLayout(
+						HLayout(
+							StaticText().string_("Width").align_(\left),
+							nil,
+							oscWidthRadNb, oscWidthDegNb, // only one visible at a time: change to one numbox with switch in action?
+							oscWidthLabel
+						),
+						oscWidthSl
+					).margins_(0)
+				).fixedHeight_(55),
+
+				varyMotionView
+			)
+		).background_(Color.gray.alpha_(0.5));
+
 		[
 			conventionView,
-			HLayout(
-				rttView, oscView, optionView
+			VLayout(
+				rttView, oscView
 			),
 			nil
 		].do(mstrLayout.add(_));
@@ -357,14 +363,14 @@ PointViewUI : View {
 							rttChk.value = true;
 							yprChk.value = false;
 							radianCtls.rotate.label = "Rotate";
-							radianCtls.tilt.label = "Tilt";
+							radianCtls.tilt.label   = "Tilt";
 							radianCtls.tumble.label = "Tumble";
 						},
 						\ypr, {
 							rttChk.value = false;
 							yprChk.value = true;
 							radianCtls.rotate.label = "Yaw";
-							radianCtls.tilt.label = "Roll";
+							radianCtls.tilt.label   = "Roll";
 							radianCtls.tumble.label = "Pitch";
 						}
 					)
@@ -373,23 +379,61 @@ PointViewUI : View {
 				\showAxes,    { axesChk.value = args[0].asBoolean },
 				\showConnections, { connChk.value = args[0].asBoolean },
 				\units, {
-					switch (args[0],
-						\radians, { radChk.value = true;  degChk.value = false },
-						\degrees, { radChk.value = false; degChk.value = true }
+					units = args[0];
+					switch (units,
+						\radians, {
+							radChk.value = true;
+							degChk.value = false;
+							oscWidthRadNb.visible_(true);
+							oscWidthDegNb.visible_(false);
+							oscWidthLabel.string_("π");
+						},
+						\degrees, {
+							radChk.value = false;
+							degChk.value = true;
+							oscWidthRadNb.visible_(false);
+							oscWidthDegNb.visible_(true);
+							oscWidthLabel.string_("deg");
+						}
 					);
 					radianCtls.keysValuesDo{ |k,v| v.units_(args[0]) };
 				},
 				\allAuto, {
 					cycChk.value_(args[0]);
-					if (args[0]) { oscChk.value = false };
+					if (args[0]) {
+						oscChk.value = false;
+						varyMotionView.visible_(true);
+						periodView.visible_(true);
+						widthView.visible_(false);
+					} {
+						if (oscChk.value.not) {
+							// no motion, hide vary motion controls
+							varyMotionView.visible_(false);
+							periodView.visible_(false);
+							widthView.visible_(false);
+						}
+					};
+
 				},
 				\allOsc,  {
 					oscChk.value_(args[0]);
-					if (args[0]) { cycChk.value = false };
+					if (args[0]) {
+						cycChk.value = false;
+						varyMotionView.visible_(true);
+						periodView.visible_(true);
+						widthView.visible_(true);
+					} {
+						if (cycChk.value.not) {
+							// no motion, hide vary motion controls
+							varyMotionView.visible_(false);
+							periodView.visible_(false);
+							widthView.visible_(false);
+						}
+					};
 				},
-				\rotate, { radianCtls.rotate.value_(args[0]) },
-				\tilt,   { radianCtls.tilt.value_(args[0]) },
-				\tumble, { radianCtls.tumble.value_(args[0]) },
+				\rotate, { radianCtls.rotate.setValue_(args[0].postln) },
+				\tilt,   { radianCtls.tilt.setValue_(args[0]) },
+				\tumble, { radianCtls.tumble.setValue_(args[0]) },
 
 				\rotateDir, {
 					invRotateChk.value = args[0].asBoolean.not;
@@ -399,7 +443,7 @@ PointViewUI : View {
 				},
 				\tumbleDir, {
 					invTumbleChk.value = args[0].asBoolean.not;
-				},
+				}
 			)
 		}
 	}
@@ -442,38 +486,35 @@ PointViewRadianCtl : View {
 		this.layItOut;
 		this.units_(units);
 		color !? { this.background_(color) };
+		this.setValue_(pv.perform(getter));
 	}
 
 	initWidgets {
 		labelTxt = StaticText().string_(label);
 
 		unitLabel = StaticText().string_(
-			switch (units, \degree, { "deg" }, \radian, { "π" })
+			switch (units, \degrees, { "deg" }, \radians, { "π" })
 		)
+		.align_(\eft)
+		.fixedWidth_("deg".bounds.width * 1.2)
 		;
 
 		slider = Slider()
 		.action_({ |sl|
 			var val = spec.map(sl.value);
-			switch (units,
-				\degree, {
-					pv.perform(setter, val.degrad);
-				},
-				\radian, {
-					pv.perform(setter, val);
-				}
-			)
+			pv.perform(setter, val);
 		})
 		.orientation_(\horizontal)
+		.fixedHeight_(25)
 		;
 
 		numBox = NumberBox()
 		.action_({ |nb|
 			switch (units,
-				\degree, {
+				\degrees, {
 					pv.perform(setter, nb.value.degrad);
 				},
-				\radian, {
+				\radians, {
 					pv.perform(setter, (nb.value * pi).value);
 				}
 			)
@@ -489,43 +530,42 @@ PointViewRadianCtl : View {
 
 	layItOut {
 		this.layout_(
-			HLayout(
-				VLayout(
-					HLayout(labelTxt, nil, numBox),
-					slider
-				),
-				VLayout(unitLabel, nil)
+			VLayout(
+				HLayout(labelTxt, nil, numBox, unitLabel),
+				slider
 			)
 		)
 	}
 
 	units_ { |radOrDeg|
 		var u = switch (radOrDeg,
-			\degrees, { \degree },
-			\degree,  { \degree },
-			\deg,     { \degree },
-			\radians, { \radian },
-			\radian,  { \radian },
-			\rad,     { \radian }
+			\degrees, { \degrees },
+			\degree,  { \degrees },
+			\deg,     { \degrees },
+			\radians, { \radians },
+			\radian,  { \radians },
+			\rad,     { \radians }
 		);
 
 		units = u;
 
 		switch (units,
-			\degree, {
+			\degrees, {
 				unitLabel.string_("deg");
 				numBox
 				.decimals_(1)
 				.clipLo_(min(spec.minval, spec.maxval).raddeg)
 				.clipHi_(max(spec.minval, spec.maxval).raddeg)
+				.value_(pv.perform(getter).raddeg)
 				;
 			},
-			\radian, {
+			\radians, {
 				unitLabel.string_("π");
 				numBox
 				.decimals_(2)
 				.clipLo_(min(spec.minval, spec.maxval).postln / pi)
 				.clipHi_(max(spec.minval, spec.maxval).postln / pi)
+				.value_(pv.perform(getter) / pi)
 				;
 			}
 		);
@@ -536,10 +576,10 @@ PointViewRadianCtl : View {
 	}
 
 	// for updating the slider and numberbox together
-	value_ { |rad|
+	setValue_ { |rad|
 		numBox.value = switch (units,
-			\degree, { rad.raddeg },
-			\radian, { rad / pi }
+			\degrees, { rad.raddeg },
+			\radians, { rad / pi }
 		);
 
 		slider.value_(spec.unmap(rad));

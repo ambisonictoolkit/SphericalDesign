@@ -20,7 +20,7 @@ PointView : View {
 	// movement
 	var <baseRotation = 0, <baseTilt = 0, <baseTumble = 0; // radians
 	var <rotate = 0, <tilt = 0, <tumble = 0; // radians, rotations after any movement offsets are applied
-	var <rotateRate = 0.05, <tiltRate = 0.05, <tumbleRate = 0.05; // Hz
+	var <rotateRate = 0.025, <tiltRate = 0.025, <tumbleRate = 0.025; // Hz
 	var <rotateStep, tiltStep, tumbleStep;   // radians
 	var <rotateDir = 1, <tiltDir  = 1, <tumbleDir = 1; // +/-1
 	var <autoRotate = false, <autoTumble = false, <autoTilt = false;
@@ -28,10 +28,9 @@ PointView : View {
 	var rotateOscT, rotateOscPhsInc;
 	var tiltOscT, tiltOscPhsInc;
 	var tumbleOscT, tumbleOscPhsInc;
-	// var rotateOscCenter, tiltOscCenter, tumbleOscCenter;
-	var rotateOscWidth, tiltOscWidth, tumbleOscWidth;
+	var <rotateOscWidth, tiltOscWidth, tumbleOscWidth;
 	var rotatePhase = 0, tiltPhase = 0, tumblePhase = 0; // phase index into the rotation oscillators
-	var rotateMode = \rtt; // \rtt or \ypr
+	var <rotateMode = \rtt; // \rtt or \ypr
 	var <randomizedAxes;   // dictionary of booleans for randomize state of each axis
 	var <>randomVariance = 0.15;
 
@@ -46,7 +45,7 @@ PointView : View {
 	}
 
 	init { |argSpec, initVal|
-		var initOscWidth = 0.25pi;
+		var initOscWidth = 0.15pi;
 
 		points = [];
 		az = bz + 1; // distance to point from eye
@@ -71,6 +70,14 @@ PointView : View {
 			\tumble, false
 		]);
 
+		// init movement variables
+		this.rotateOscPeriod_(this.rotatePeriod * (initOscWidth/2pi));
+		this.tiltOscPeriod_(this.tiltPeriod * (initOscWidth/2pi));
+		this.tumbleOscPeriod_(this.tumblePeriod * (initOscWidth/2pi));
+		// rotateOscCenter = tiltOscCenter = tumbleOscCenter = 0;
+		tumbleOscWidth = tiltOscWidth = rotateOscWidth = initOscWidth;
+		this.rotateMode_(rotateMode);
+
 		// init rotation variables
 		this.rotateRate_(rotateRate);
 		this.tiltRate_(tiltRate);
@@ -87,15 +94,6 @@ PointView : View {
 		ctlView = PointViewUI(this, Rect(5, 5, 600, 400));
 		this.addDependant(ctlView);
 		ctlView.onClose({ this.removeDependant(ctlView) });
-
-		// init movement variables
-		this.rotateOscPeriod_(this.rotatePeriod * (initOscWidth/pi));
-		this.tiltOscPeriod_(this.tiltPeriod * (initOscWidth/pi));
-		this.tumbleOscPeriod_(this.tumblePeriod * (initOscWidth/pi));
-		// rotateOscCenter = tiltOscCenter = tumbleOscCenter = 0;
-		tumbleOscWidth = tiltOscWidth = rotateOscWidth = initOscWidth;
-
-		this.rotateMode_(rotateMode);
 	}
 
 	updateCanvasDims {
@@ -650,7 +648,7 @@ PointView : View {
 		userView.frameRate_(hz);
 		this.changed(\frameRate, hz);
 		// update rotation oscillator's phase step
-		this.rotateOscT_(rotateOscT);
+		this.rotateOscPeriod_(rotateOscT);
 	}
 
 
