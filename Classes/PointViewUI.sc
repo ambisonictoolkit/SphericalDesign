@@ -6,7 +6,7 @@ PointViewUI : View {
 	var mstrLayout;
 	var conventionView, oscView, rttView, varyMotionView, periodView, widthView;
 	var rttChk, yprChk, radChk, degChk, cycChk, oscChk;
-	var indicesChk, axesChk, connChk;
+	var indicesChk, axesChk, connChk, resetBut;
 	var units = \degrees;
 
 	// cyclic motion
@@ -20,8 +20,8 @@ PointViewUI : View {
 	var oscWidthSl;
 	var <radianCtls; // Dict of controls with radian/degree units, e.g. rotate, tilt...
 
-	*new { |pointView, bounds = (Rect(0,0, 250, 800))|
-		^super.new(pointView, bounds).init(pointView);
+	*new { |pointView, bounds = (Rect(0,0, 420, 530))|
+		^super.new(bounds: bounds).init(pointView);
 	}
 
 	init { |pointView|
@@ -33,8 +33,9 @@ PointViewUI : View {
 
 		mstrLayout = VLayout().spacing_(4);
 		this.layout_(mstrLayout);
-		this.resize_(5);
+		// this.resize_(5);
 		this.background_(Color.green.alpha_(0.25));
+
 
 		rttChk = CheckBox()
 		.action_({ |cb| pv.rotateMode_(if (cb.value) { \rtt } { \ypr }) })
@@ -53,10 +54,22 @@ PointViewUI : View {
 		;
 
 		cycChk = CheckBox()
-		.action_({ |cb| pv.allAuto_(cb.value) })
+		.action_({ |cb|
+			pv.allAuto_(cb.value);
+			if (cb.value.not) {
+				pv.rotate_(pv.baseRotation).tilt_(pv.baseTilt).tumble_(pv.baseTumble);
+				pv.rotatePhase_(0).tiltPhase_(0).tumblePhase_(0);
+			};
+		})
 		;
 		oscChk = CheckBox()
-		.action_({ |cb| pv.allOsc_(cb.value) })
+		.action_({ |cb|
+			pv.allOsc_(cb.value);
+			if (cb.value.not) {
+				pv.rotate_(pv.baseRotation).tilt_(pv.baseTilt).tumble_(pv.baseTumble);
+				pv.rotatePhase_(0).tiltPhase_(0).tumblePhase_(0);
+			};
+		})
 		;
 
 		indicesChk = CheckBox()
@@ -69,6 +82,17 @@ PointViewUI : View {
 		.action_({ |cb| pv.showConnections_(cb.value) })
 		;
 
+		resetBut = Button()
+		.action_({ |but|
+			cycChk.valueAction_(false);
+			oscChk.valueAction_(false);
+			perNb.valueAction_(40);           // default osc/cycle period
+			oscWidthDegNb.valueAction_(30);   // default osc width
+			pv.rotate_(0).tilt_(0).tumble_(0);
+		})
+		.states_([["Reset"]])
+		;
+
 		// cyclic motion
 		perNb = NumberBox()
 		.action_({ |nb|
@@ -77,7 +101,7 @@ PointViewUI : View {
 				\rotateOscPeriod_, \tiltOscPeriod_, \tumbleOscPeriod_
 			].do({ |meth|
 				pv.perform(meth, nb.value);
-				perSl.value = nb.value.curvelin(0.5, 45, 0, 1, 4);
+				perSl.value = nb.value.curvelin(0.5, 70, 0, 1, 4);
 			})
 		})
 		.fixedWidth_(nbWidth)
@@ -93,14 +117,14 @@ PointViewUI : View {
 				\rotatePeriod_, \tiltPeriod_, \tumblePeriod_,
 				\rotateOscPeriod_, \tiltOscPeriod_, \tumbleOscPeriod_
 			].do({ |meth|
-				val = sl.value.lincurve(0, 1, 0.5, 45, 4);
+				val = sl.value.lincurve(0, 1, 0.5, 70, 4);
 				pv.perform(meth, val); // sets both osc and cyc period
 				perNb.value = val;
 			})
 		})
 		.orientation_(\horizontal)
 		.fixedHeight_(25)
-		.value_(pv.rotatePeriod.curvelin(0.5, 45, 0, 1, 4))
+		.value_(pv.rotatePeriod.curvelin(0.5, 70, 0, 1, 4))
 		;
 
 		oscWidthRadNb = NumberBox()
@@ -275,8 +299,8 @@ PointViewUI : View {
 							nil,
 						),
 					)
-				).spacing_(10),
-				20,
+				).margins_(5).spacing_(10),
+				10,
 				HLayout(
 					StaticText().string_("Invert\nMotion")
 					.align_(\center).fixedWidth_(55).font_(Font.default.bold_(true)),
@@ -299,7 +323,7 @@ PointViewUI : View {
 							nil,
 						),
 					)
-				).spacing_(10)
+				).margins_(5).spacing_(10)
 			).margins_(0).spacing_(2),
 		).background_(Color.gray.alpha_(0.5));
 
@@ -311,7 +335,8 @@ PointViewUI : View {
 					15,
 					cycChk,
 					StaticText().string_("Cycle").align_(\left).font_(Font.default.bold_(true)),
-					nil
+					nil,
+					resetBut
 				),
 				periodView = View().layout_(
 					VLayout(
@@ -431,7 +456,7 @@ PointViewUI : View {
 						}
 					};
 				},
-				\rotate, { radianCtls.rotate.setValue_(args[0].postln) },
+				\rotate, { radianCtls.rotate.setValue_(args[0]) },
 				\tilt,   { radianCtls.tilt.setValue_(args[0]) },
 				\tumble, { radianCtls.tumble.setValue_(args[0]) },
 

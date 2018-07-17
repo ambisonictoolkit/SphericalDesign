@@ -5,12 +5,14 @@ PointView : View {
 
 	// drawing
 	var <cen, <minDim;
-	var skewX = 0, skewY = 0;
-	var translateX = 0, translateY = 0;
+	var <skewX = 0, <skewY = 0;
+	var <translateX = 0, <translateY = 0;
 	var az, bz = 3;              // perspective parameters, see originDist_, eyeDist_
-	var showIndices = true;      // show indices of points
-	var showAxes = true;         // show world axes
-	var showConnections = false; // show connections between points
+	var <showIndices = true;      // show indices of points
+	var <showAxes = true;         // show world axes
+	var <showConnections = false; // show connections between points
+	var perspective = true, ortho = false, orthoAxis = '+X';
+
 	var xyz, <axisColors, axisScale = 1;
 	var frameRate = 25;
 	var <pointColors, prPntDrawCols;
@@ -29,13 +31,13 @@ PointView : View {
 	var tiltOscT, tiltOscPhsInc;
 	var tumbleOscT, tumbleOscPhsInc;
 	var <rotateOscWidth, tiltOscWidth, tumbleOscWidth;
-	var rotatePhase = 0, tiltPhase = 0, tumblePhase = 0; // phase index into the rotation oscillators
+	var >rotatePhase = 0, >tiltPhase = 0, >tumblePhase = 0; // phase index into the rotation oscillators
 	var <rotateMode = \rtt; // \rtt or \ypr
 	var <randomizedAxes;   // dictionary of booleans for randomize state of each axis
 	var <>randomVariance = 0.15;
 
 	// views
-	var <userView, <ctlView;
+	var <userView, <rotationView, <showView, <perspectiveView;
 
 	// interaction
 	var mouseDownPnt, mouseUpPnt, mouseMovePnt;
@@ -91,10 +93,226 @@ PointView : View {
 		this.updateCanvasDims;
 
 		// init controller view
-		ctlView = PointViewUI(this, Rect(5, 5, 600, 400));
-		this.addDependant(ctlView);
-		ctlView.onClose({ this.removeDependant(ctlView) });
+		rotationView = PointViewUI(this, Rect(5, 35, 405, 530));
+		this.addDependant(rotationView);
+		rotationView.onClose({ this.removeDependant(rotationView) });
+
+		this.makeShowView;
+		this.makePerspectiveView;
+
+		this.layItOut;
+
 	}
+
+	layItOut {
+		var rTxt, sTxt, pTxt;
+		var onCol = Color.blue;
+		var offCol = Color.gray;
+
+		this.layout_(
+			VLayout(
+				HLayout(
+					rTxt = StaticText().string_("Rotation")
+					.mouseDownAction_({ |txt|
+						var cur;
+						cur = rotationView.visible;
+						if (cur) {
+							txt.stringColor_(offCol);
+						} {
+							txt.stringColor_(onCol);
+							showView.visible_(false);
+							perspectiveView.visible_(false);
+							sTxt.stringColor_(offCol);
+							pTxt.stringColor_(offCol);
+						};
+						rotationView.visible_(cur.not);
+					})
+					.stringColor_(offCol),
+
+					sTxt = StaticText().string_("Show")
+					.mouseDownAction_({ |txt|
+						var cur;
+						cur = showView.visible;
+						if (cur) {
+							txt.stringColor_(offCol);
+						} {
+							txt.stringColor_(onCol);
+							rotationView.visible_(false);
+							perspectiveView.visible_(false);
+							rTxt.stringColor_(offCol);
+							pTxt.stringColor_(offCol);
+						};
+						showView.visible_(cur.not)
+					})
+					.stringColor_(offCol),
+
+					pTxt = StaticText().string_("Perspective")
+					.mouseDownAction_({ |txt|
+						var cur;
+						cur = rotationView.visible;
+						if (cur) {
+							txt.stringColor_(offCol);
+						} {
+							txt.stringColor_(onCol);
+							showView.visible_(false);
+							rotationView.visible_(false);
+							sTxt.stringColor_(offCol);
+							rTxt.stringColor_(offCol);
+						};
+						perspectiveView.visible_(cur.not)
+					})
+					.stringColor_(offCol),
+
+					nil
+				).spacing_(20),
+				rotationView.maxSize_(Size(430, 555)).visible_(false),
+				showView.maxSize_(Size(430, 555)).visible_(false),
+				perspectiveView.maxSize_(Size(430, 555)).visible_(false),
+				nil
+			)
+		);
+		}
+
+	makeShowView {
+		var axChk, axLenSl;
+		var indcChk;
+		var connChk, tripChk, seqChk;
+
+		axChk = CheckBox()
+		.action_({ |cb|
+			this.showAxes_(cb.value);
+		})
+		.value_(showAxes)
+		;
+
+		axLenSl = Slider()
+		.action_({ |sl|
+			this.axisScale_(sl.value.linlin(0,1,0,1.5))
+		})
+		.orientation_(\horizontal)
+		.value_(axisScale / 1.5);
+
+		indcChk = CheckBox()
+		.action_({ |cb|
+			this.showIndices_(cb.value);
+		})
+		.value_(showIndices)
+		;
+
+		connChk = CheckBox()
+		.action_({ |cb|
+			this.showConnections_(cb.value);
+		})
+		.value_(showConnections)
+		;
+
+		tripChk = CheckBox()
+		.action_({ |cb|
+			this.connections_(
+				SphericalDesign().points_(points).calcTriplets.triplets
+			)
+		})
+		.value_(false)
+		;
+
+		seqChk = CheckBox()
+		.action_({ |cb|
+			this.connections_([(0..points.size)])
+		})
+		.value_(false)
+		;
+
+		showView = View().layout_(
+			VLayout(
+				HLayout(
+					axChk,
+					StaticText().string_("Axes").align_(\left),
+					axLenSl
+				),
+				HLayout(
+					indcChk,
+					StaticText().string_("Indices").align_(\left),
+				),
+				HLayout(
+					connChk,
+					StaticText().string_("Connections").align_(\left),
+					tripChk,
+					StaticText().string_("Triangulation").align_(\left),
+					seqChk,
+					StaticText().string_("Sequential").align_(\left),
+
+				),
+			)
+		);
+	}
+
+	makePerspectiveView {
+		var xposChk, xnegChk, yposChk, ynegChk, zposChk, znegChk;
+		var skxSl, skySl, trxSl, trySl;
+
+		#xposChk, xnegChk, yposChk, ynegChk, zposChk, znegChk =
+		['+X', '-X', '+Y', '-Y', '+Z', '-Z'].collect{ |ax|
+			CheckBox()
+			.action_({ |cb|
+				if (cb.value) {
+					this.setOrtho(ax)
+				} {
+					this.setPerspective
+				};
+			})
+			.value_(ortho and: { orthoAxis == ax })
+		};
+
+		#skxSl, skySl, trxSl, trySl =
+		[\skewX, \skewY, \translateX, \translateY].collect{ |meth|
+			var setter;
+			setter = (meth ++ \_).asSymbol;
+			Slider()
+			.action_({ |sl| this.perform(setter, sl.value.linlin(0,1,-1,1)) })
+			.value_(this.perform(meth).linlin(-1,1,0,1))
+			.orientation_(\horizontal)
+		};
+
+		perspectiveView = View().layout_(
+			HLayout(
+				VLayout(
+					StaticText().string_("Perspective").align_(\center),
+					StaticText().string_("Skew").align_(\left),
+					HLayout(
+						StaticText().string_("X"), skxSl
+					),
+					HLayout(
+						StaticText().string_("Y"), skySl
+					),
+					StaticText().string_("Translate").align_(\left),
+					HLayout(
+						StaticText().string_("X"), trxSl
+					),
+					HLayout(
+						StaticText().string_("Y"), trySl
+					),
+				),
+				VLayout(
+					StaticText().string_("Ortho").align_(\center),
+					HLayout(
+						nil,
+						StaticText().string_("+"),
+						StaticText().string_("-"),
+					),
+					HLayout(
+						StaticText().string_("X"), xposChk, xnegChk
+					),
+					HLayout(
+						StaticText().string_("Y"), yposChk, ynegChk
+					),
+					HLayout(
+						StaticText().string_("Z"), zposChk, znegChk
+					),
+				),
+			)
+		);
+	}
+
 
 	updateCanvasDims {
 		var bnds;
@@ -395,6 +613,16 @@ PointView : View {
 		this.changed(\pointDistScale, norm);
 	}
 
+	// axis: '+X', '-X', '+Y', '-Y', '+Z', '-Z'
+	setOrtho_ { |axis|
+		ortho = true;
+		orthoAxis = axis;
+		perspective = false;
+	}
+
+	setPerspective {
+		perspective = true;
+	}
 
 	/* View movement controls */
 
