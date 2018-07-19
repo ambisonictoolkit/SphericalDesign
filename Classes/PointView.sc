@@ -5,36 +5,35 @@ PointView : View {
 
 	// drawing
 	var <cen, <minDim;
-	var <skewX = 0, <skewY = 0;
-	var <translateX = 0, <translateY = 0;
-	var az, bz = 3;              // perspective parameters, see originDist_, eyeDist_
+	var <skewX = 0, <skewY = -0.95;
+	var <translateX = 0, <translateY = 0.8;
+	var az, bz = 3;               // perspective parameters, see originDist_, eyeDist_
 	var <showIndices = true;      // show indices of points
 	var <showAxes = true;         // show world axes
 	var <showConnections = false; // show connections between points
 	var perspective = true, ortho = false, orthoAxis = '+X';
-
-	var xyz, <axisColors, axisScale = 1;
+	var xyz, <axisColors, <axisScale = 0.2;
 	var frameRate = 25;
 	var <pointColors, prPntDrawCols;
 	var colsByHue = true, huesScrambled = false;     // if the colors have been set by hue range
 	var <pointSize = 15, <pointDistScale = 0.333;
 
 	// movement
-	var <baseRotation = 0, <baseTilt = 0, <baseTumble = 0; // radians
-	var <rotate = 0, <tilt = 0, <tumble = 0; // radians, rotations after any movement offsets are applied
-	var <rotateRate = 0.025, <tiltRate = 0.025, <tumbleRate = 0.025; // Hz
-	var <rotateStep, tiltStep, tumbleStep;   // radians
-	var <rotateDir = 1, <tiltDir  = 1, <tumbleDir = 1; // +/-1
-	var <autoRotate = false, <autoTumble = false, <autoTilt = false;
-	var <oscRotate = false, <oscTumble = false, <oscTilt = false;
+	var <baseRotation, <baseTilt, <baseTumble; // radians, rotations before any movement offsets are applied
+	var <rotate, <tilt, <tumble;               // radians, rotations after any movement offsets are applied
+	var <rotateRate, <tiltRate, <tumbleRate;   // Hz
+	var <rotateStep, tiltStep, tumbleStep;     // radians
+	var <rotateDir, <tiltDir, <tumbleDir;      // +/-1
+	var <cycRotate, <cycTilt, <cycTumble;
+	var <oscRotate, <oscTumble, <oscTilt;
 	var rotateOscT, rotateOscPhsInc;
 	var tiltOscT, tiltOscPhsInc;
 	var tumbleOscT, tumbleOscPhsInc;
 	var <rotateOscWidth, tiltOscWidth, tumbleOscWidth;
-	var >rotatePhase = 0, >tiltPhase = 0, >tumblePhase = 0; // phase index into the rotation oscillators
-	var <rotateMode = \rtt; // \rtt or \ypr
-	var <randomizedAxes;   // dictionary of booleans for randomize state of each axis
-	var <>randomVariance = 0.15;
+	var >rotatePhase, >tiltPhase, >tumblePhase; // phase index into the rotation oscillators
+	var <rotateMode;      // \rtt or \ypr
+	var <randomizedAxes;  // dictionary of booleans for randomize state of each axis
+	var <>randomVariance; // normalized value to apply to movement speed if randomized
 
 	// views
 	var <userView, <rotationView, <showView, <perspectiveView;
@@ -47,10 +46,22 @@ PointView : View {
 	}
 
 	init { |argSpec, initVal|
-		var initOscWidth = 0.15pi;
+		var initOscWidth = 8.degrad;
 
 		points = [];
 		az = bz + 1; // distance to point from eye
+
+		// init  vars
+		tumbleRate = tiltRate = rotateRate = 30.reciprocal;
+		baseRotation = -45.degrad;
+		baseTilt = baseTumble = 0;
+		rotate = tilt = tumble = 0;
+		rotateDir = tiltDir = tumbleDir = 1;
+		cycRotate = cycTumble = cycTilt = false;
+		oscRotate = oscTumble = oscTilt = false;
+		rotatePhase = tiltPhase = tumblePhase = 0;
+		rotateMode = \rtt;
+		randomVariance = 0.15;
 
 		userView = UserView(this, this.bounds.origin_(0@0))
 		.resize_(5)
@@ -60,22 +71,22 @@ PointView : View {
 
 		// origin, x, y, z
 		axisPnts = [[0,0,0], [1,0,0], [0,1,0], [0,0,1]].collect(_.asCartesian);
-		axisColors = [\blue, \red, \green].collect{|col| Color.perform(col, 1, 0.7) };
+		axisColors = [\blue, \red, \green].collect{ |col| Color.perform(col, 1, 0.7) };
 		xyz = #["X", "Y", "Z"];
 
 		// init draw colors
 		prPntDrawCols = [Color.hsv(0,1,1,1), Color.hsv(0.999,1,1,1)];
 		colsByHue = true;
 		randomizedAxes = IdentityDictionary(know: true).putPairs([
-			\rotate, false,
-			\tilt,   false,
-			\tumble, false
+			\rotate, true,
+			\tilt,   true,
+			\tumble, true
 		]);
 
 		// init movement variables
-		this.rotateOscPeriod_(this.rotatePeriod * (initOscWidth/2pi));
-		this.tiltOscPeriod_(this.tiltPeriod * (initOscWidth/2pi));
-		this.tumbleOscPeriod_(this.tumblePeriod * (initOscWidth/2pi));
+		this.rotateOscPeriod_(this.rotatePeriod); // * (initOscWidth/2pi));
+		this.tiltOscPeriod_(this.tiltPeriod); // * (initOscWidth/2pi));
+		this.tumbleOscPeriod_(this.tumblePeriod); // * (initOscWidth/2pi));
 		// rotateOscCenter = tiltOscCenter = tumbleOscCenter = 0;
 		tumbleOscWidth = tiltOscWidth = rotateOscWidth = initOscWidth;
 		this.rotateMode_(rotateMode);
@@ -93,7 +104,7 @@ PointView : View {
 		this.updateCanvasDims;
 
 		// init controller view
-		rotationView = PointViewUI(this, Rect(5, 35, 405, 530));
+		rotationView = PointViewUI(this, Rect(5, 35, 405, 700));
 		this.addDependant(rotationView);
 		rotationView.onClose({ this.removeDependant(rotationView) });
 
@@ -108,6 +119,9 @@ PointView : View {
 		var rTxt, sTxt, pTxt;
 		var onCol = Color.blue;
 		var offCol = Color.gray;
+		var tempTransX;
+
+		tempTransX = translateX;
 
 		this.layout_(
 			VLayout(
@@ -118,12 +132,15 @@ PointView : View {
 						cur = rotationView.visible;
 						if (cur) {
 							txt.stringColor_(offCol);
+							this.translateX_(tempTransX);
 						} {
 							txt.stringColor_(onCol);
 							showView.visible_(false);
 							perspectiveView.visible_(false);
 							sTxt.stringColor_(offCol);
 							pTxt.stringColor_(offCol);
+							tempTransX = translateX;
+							this.translateX_(0.6);
 						};
 						rotationView.visible_(cur.not);
 					})
@@ -137,6 +154,11 @@ PointView : View {
 							txt.stringColor_(offCol);
 						} {
 							txt.stringColor_(onCol);
+
+							// return translation if rotation view is visible
+							if (rotationView.visible) {
+								this.translateX_(tempTransX);
+							};
 							rotationView.visible_(false);
 							perspectiveView.visible_(false);
 							rTxt.stringColor_(offCol);
@@ -149,11 +171,16 @@ PointView : View {
 					pTxt = StaticText().string_("Perspective")
 					.mouseDownAction_({ |txt|
 						var cur;
-						cur = rotationView.visible;
+						cur = perspectiveView.visible;
 						if (cur) {
 							txt.stringColor_(offCol);
 						} {
 							txt.stringColor_(onCol);
+
+							// return translation if rotation view is visible
+							if (rotationView.visible) {
+								this.translateX_(tempTransX);
+							};
 							showView.visible_(false);
 							rotationView.visible_(false);
 							sTxt.stringColor_(offCol);
@@ -165,9 +192,11 @@ PointView : View {
 
 					nil
 				).spacing_(20),
-				rotationView.maxSize_(Size(430, 555)).visible_(false),
-				showView.maxSize_(Size(430, 555)).visible_(false),
-				perspectiveView.maxSize_(Size(430, 555)).visible_(false),
+
+				rotationView.maxWidth_(430).visible_(false),
+				showView.maxWidth_(330).visible_(false),
+				perspectiveView.maxWidth_(430).visible_(false),
+
 				nil
 			)
 		);
@@ -176,7 +205,7 @@ PointView : View {
 	makeShowView {
 		var axChk, axLenSl;
 		var indcChk;
-		var connChk, tripChk, seqChk;
+		var connChk, triBut, seqBut;
 
 		axChk = CheckBox()
 		.action_({ |cb|
@@ -206,20 +235,28 @@ PointView : View {
 		.value_(showConnections)
 		;
 
-		tripChk = CheckBox()
-		.action_({ |cb|
-			this.connections_(
-				SphericalDesign().points_(points).calcTriplets.triplets
-			)
+		triBut = Button()
+		.action_({
+			try {
+				this.connections_(
+					SphericalDesign().points_(points).calcTriplets.triplets
+				)
+			} {
+				"Couldn't calulate the triangulation of points".warn
+			};
+			connChk.valueAction_(true);
 		})
-		.value_(false)
+		.states_([["Triangulation"]])
+		.maxHeight_(25)
 		;
 
-		seqChk = CheckBox()
-		.action_({ |cb|
-			this.connections_([(0..points.size)])
+		seqBut = Button()
+		.action_({
+			this.connections_([(0..points.size-1)]);
+			connChk.valueAction_(true);
 		})
-		.value_(false)
+		.states_([["Sequential"]])
+		.maxHeight_(25)
 		;
 
 		showView = View().layout_(
@@ -227,20 +264,22 @@ PointView : View {
 				HLayout(
 					axChk,
 					StaticText().string_("Axes").align_(\left),
+					15,
+					StaticText().string_("length: ").align_(\left),
 					axLenSl
 				),
 				HLayout(
 					indcChk,
 					StaticText().string_("Indices").align_(\left),
+					nil
 				),
 				HLayout(
 					connChk,
 					StaticText().string_("Connections").align_(\left),
-					tripChk,
-					StaticText().string_("Triangulation").align_(\left),
-					seqChk,
-					StaticText().string_("Sequential").align_(\left),
-
+					10,
+					triBut,
+					10,
+					seqBut
 				),
 			)
 		);
@@ -249,13 +288,17 @@ PointView : View {
 	makePerspectiveView {
 		var xposChk, xnegChk, yposChk, ynegChk, zposChk, znegChk;
 		var skxSl, skySl, trxSl, trySl;
+		var orDistSl, eyeDistSl;
 
 		#xposChk, xnegChk, yposChk, ynegChk, zposChk, znegChk =
 		['+X', '-X', '+Y', '-Y', '+Z', '-Z'].collect{ |ax|
 			CheckBox()
 			.action_({ |cb|
 				if (cb.value) {
-					this.setOrtho(ax)
+					this.setOrtho(ax);
+					[xposChk, xnegChk, yposChk, ynegChk, zposChk, znegChk].do({ |me|
+						if (me != cb) {me.value = false}
+					});
 				} {
 					this.setPerspective
 				};
@@ -268,51 +311,76 @@ PointView : View {
 			var setter;
 			setter = (meth ++ \_).asSymbol;
 			Slider()
-			.action_({ |sl| this.perform(setter, sl.value.linlin(0,1,-1,1)) })
-			.value_(this.perform(meth).linlin(-1,1,0,1))
+			.action_({ |sl| this.perform(setter, sl.value.linlin(0,1,-2,2)) })
+			.value_(this.perform(meth).linlin(-2,2,0,1))
 			.orientation_(\horizontal)
+			.maxWidth_(200)
 		};
+
+		orDistSl = Slider()
+		.action_({ |sl|
+			this.originDist_(sl.value.linlin(0,1,0.5.neg,3))
+		})
+		.orientation_(\horizontal)
+		.value_((az-bz).linlin(0.5.neg,3,0,1))
+		;
+		eyeDistSl = Slider()
+		.action_({ |sl|
+			this.eyeDist_(sl.value.linlin(0,1,1.5,6))
+		})
+		.orientation_(\horizontal)
+		.value_(bz.linlin(1.5,6,0,1))
+		;
 
 		perspectiveView = View().layout_(
 			HLayout(
 				VLayout(
 					StaticText().string_("Perspective").align_(\center),
-					StaticText().string_("Skew").align_(\left),
-					HLayout(
-						StaticText().string_("X"), skxSl
+					VLayout(
+						StaticText().string_("Skew").align_(\left),
+						HLayout(
+							StaticText().string_("X"), skxSl
+						),
+						HLayout(
+							StaticText().string_("Y"), skySl
+						),
+						StaticText().string_("Translate").align_(\left),
+						HLayout(
+							StaticText().string_("X"), trxSl
+						),
+						HLayout(
+							StaticText().string_("Y"), trySl
+						),
+						StaticText().string_("Origin Distance").align_(\left),
+						orDistSl,
+						StaticText().string_("Eye Distance").align_(\left),
+						eyeDistSl
 					),
-					HLayout(
-						StaticText().string_("Y"), skySl
-					),
-					StaticText().string_("Translate").align_(\left),
-					HLayout(
-						StaticText().string_("X"), trxSl
-					),
-					HLayout(
-						StaticText().string_("Y"), trySl
-					),
+					nil
 				),
+				25,
 				VLayout(
 					StaticText().string_("Ortho").align_(\center),
-					HLayout(
-						nil,
-						StaticText().string_("+"),
-						StaticText().string_("-"),
+					GridLayout.columns(
+						[
+							nil,
+							StaticText().string_("X"),
+							StaticText().string_("Y"),
+							StaticText().string_("Z"),
+						],
+						[
+							StaticText().string_("+").align_(\center), xposChk, yposChk, zposChk
+						],
+						[
+							StaticText().string_("-").align_(\center), xnegChk, ynegChk, znegChk
+						],
 					),
-					HLayout(
-						StaticText().string_("X"), xposChk, xnegChk
-					),
-					HLayout(
-						StaticText().string_("Y"), yposChk, ynegChk
-					),
-					HLayout(
-						StaticText().string_("Z"), zposChk, znegChk
-					),
+					nil
 				),
+				nil
 			)
 		);
 	}
-
 
 	updateCanvasDims {
 		var bnds;
@@ -346,7 +414,7 @@ PointView : View {
 			dirArray.collect( Spherical(1, *_) )
 		}
 		{ first.size ==  3 } {
-			dirArray.collect{ |tpr| tpr.postln; Spherical(tpr[2], tpr[0], tpr[1]) }
+			dirArray.collect{ |tpr| Spherical(tpr[2], tpr[0], tpr[1]) }
 		}
 		{
 			"[PointView:-directions_] Invalid dirArray argument."
@@ -398,7 +466,7 @@ PointView : View {
 			to2D = { |carts|
 				carts.collect{ |cart|
 					(   cart
-						+ (skewX @ skewY.neg)           // offset points within world, in normalized
+						+ (skewX @ skewY.neg)           // offset points within world, normalized
 						* (bz / (az + cart.z))          // add perspective
 						+ (translateX @ translateY.neg) // translate the "world"
 					).asPoint * scale                   // discard z for 2D drawing, scale to window size
@@ -414,15 +482,15 @@ PointView : View {
 				(curRot + (step * variance.(rand))).wrap(-2pi, 2pi)
 			};
 
-			rotate = if (autoRotate) {
+			rotate = if (cycRotate) {
 				incStep.(randomizedAxes.rotate, rotate, rotateStep)
 			} { baseRotation };
 
-			tilt = if (autoTilt) {
+			tilt = if (cycTilt) {
 				incStep.(randomizedAxes.tilt,   tilt,   tiltStep)
 			} { baseTilt };
 
-			tumble = if (autoTumble) {
+			tumble = if (cycTumble) {
 				incStep.(randomizedAxes.tumble, tumble, tumbleStep)
 			} { baseTumble };
 
@@ -628,19 +696,19 @@ PointView : View {
 
 	rotate_ { |radians|
 		baseRotation = radians;
-		autoRotate = false;
+		cycRotate = false;
 		this.refresh;
 		this.changed(\rotate, radians);
 	}
 	tilt_ { |radians|
 		baseTilt = radians;
-		autoTilt = false;
+		cycTilt = false;
 		this.refresh;
 		this.changed(\tilt, radians);
 	}
 	tumble_ { |radians|
 		baseTumble = radians;
-		autoTumble = false;
+		cycTumble = false;
 		this.refresh;
 		this.changed(\tumble, radians);
 	}
@@ -695,39 +763,39 @@ PointView : View {
 	tiltPeriod   { ^tiltRate.reciprocal }
 	tumblePeriod { ^tumbleRate.reciprocal }
 
-	rotateAuto_ { |bool|
-		autoRotate = bool;
+	rotateCyc_ { |bool|
+		cycRotate = bool;
 		bool.if{ oscRotate = false };
 		this.prCheckAnimate(\auto, \rotate, bool);
 	}
-	tiltAuto_ { |bool|
-		autoTilt = bool;
+	tiltCyc_ { |bool|
+		cycTilt = bool;
 		bool.if{ oscTilt = false };
 		this.prCheckAnimate(\auto, \tilt, bool);
 	}
-	tumbleAuto_ { |bool|
-		autoTumble = bool;
+	tumbleCyc_ { |bool|
+		cycTumble = bool;
 		bool.if{ oscTumble = false };
 		this.prCheckAnimate(\auto, \tumble, bool);
 	}
-	allAuto_ { |bool|
-		this.rotateAuto_(bool).tiltAuto_(bool).tumbleAuto_(bool);
-		this.changed(\allAuto, bool);
+	allCyc_ { |bool|
+		this.rotateCyc_(bool).tiltCyc_(bool).tumbleCyc_(bool);
+		this.changed(\allCyc, bool);
 	}
 
 	rotateOsc_ { |bool|
 		oscRotate = bool;
-		bool.if{ autoRotate = false };
+		bool.if{ cycRotate = false };
 		this.prCheckAnimate(\rotate, bool);
 	}
 	tiltOsc_ { |bool|
 		oscTilt = bool;
-		bool.if{ autoTilt = false };
+		bool.if{ cycTilt = false };
 		this.prCheckAnimate(\tilt, bool);
 	}
 	tumbleOsc_ { |bool|
 		oscTumble = bool;
-		bool.if{ autoTumble = false };
+		bool.if{ cycTumble = false };
 		this.prCheckAnimate(\tumble, bool);
 	}
 	allOsc_ { |bool|
@@ -737,7 +805,7 @@ PointView : View {
 
 	prCheckAnimate { |which, bool|
 		userView.animate_(
-			[   autoRotate, autoTilt, autoTumble,
+			[   cycRotate, cycTilt, cycTumble,
 				oscRotate, oscTilt, oscTumble
 			].any({ |bool| bool })
 		);
@@ -772,22 +840,6 @@ PointView : View {
 	allOscPeriod_ { |seconds|
 		this.rotateOscPeriod_(seconds).tiltOscPeriod_(seconds).tumbleOscPeriod_(seconds);
 	}
-
-	// rotateOscCenter_ { |cenRad|
-	// 	rotateOscCenter = cenRad;
-	// 	this.changed(\oscCenter, \rotate, cenRad)
-	// }
-	// tiltOscCenter_ { |cenRad|
-	// 	tiltOscCenter = cenRad;
-	// 	this.changed(\oscCenter, \tilt, cenRad)
-	// }
-	// tumbleOscCenter_ { |cenRad|
-	// 	tumbleOscCenter = cenRad;
-	// 	this.changed(\oscCenter, \tumble, cenRad)
-	// }
-	// allOscCenter_ { |cenRad|
-	// 	this.rotateOscCenter_(cenRad).tiltOscCenter_(cenRad).tumbleOscCenter_(cenRad);
-	// }
 
 	rotateOscWidth_  { |widthRad|
 		// var deltaFactor;
@@ -849,7 +901,7 @@ PointView : View {
 	}
 
 	// draw lines between these indices of points
-	// e.g. [[1,3],[0,5],[2.4]]
+	// e.g. [[1,3],[0,5],[2,4]]
 	connections_ { |arraysOfIndices|
 		if (arraysOfIndices.rank != 2) {
 			"[PointView:-connections_] arraysOfIndices argument "
@@ -1023,7 +1075,7 @@ p = [
 v = PointView(bounds: [0,0, 400, 500].asRect).front.points_(p);
 v.eyeDist = 2;
 v.originDist = 2;
-v.autoRotate = true;
+v.cycRotate = true;
 v.showIndices = true;
 v.showAxes = true;
 )
@@ -1050,7 +1102,7 @@ p = d.degrad.collect({ |dir| Spherical(1, *dir).asCartesian});
 v = PointView().front.points_(p);
 v.eyeDist = 2;
 v.originDist = 2;
-v.autoRotate = true;
+v.cycRotate = true;
 v.showIndices = true;
 v.connections = a.sets.collect(_.chanOffsets.asInt);
 v.translateY = 0.35;

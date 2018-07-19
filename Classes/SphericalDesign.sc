@@ -166,7 +166,7 @@ TDesign : SphericalDesign {
 TDesignLib {
 	classvar <lib;   // Array of designs, stored as Dictionaries
 	classvar <>path;
-	// TODO: resolve default path
+	// TODO: resolve default path: make relative to quark
 	classvar <defaultPath = "/Users/admin/Library/Application Support/ATK/t-designs/";
 
 	*initLib {
