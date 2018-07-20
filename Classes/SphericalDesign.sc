@@ -41,7 +41,7 @@
 
 
 SphericalDesign {
-	var <>points; // points are Cartesians
+	var <points; // points are Cartesians
 	var initPoints;
 	var <design;
 	var <view;
@@ -67,8 +67,7 @@ SphericalDesign {
 
 	// modify the design by performing method on all points
 	prUpdateDesign { |method ...args|
-		points = points.collect(_.perform(method, *args));
-		this.changed(\points)
+		this.points_(points.collect(_.perform(method, *args)));
 	}
 
 	directions { ^points.collect(_.asSpherical) }
@@ -78,11 +77,23 @@ SphericalDesign {
 	size { ^points.size }
 
 	// reset points to position when first created
-	reset { points = initPoints }
+	reset { this.points_(initPoints) }
 
 	prSaveInitState { initPoints = points }
 
-	// showConnections will draw connections between points
+	points_ { |cartesianArray|
+		points = cartesianArray;
+		this.changed(\points, points); // TODO: avoid broadcasting points?
+	}
+
+	// azElArray: 2D array containing [azimuth, elevation] (theta, phi) pairs
+	directions_ { |azElArray|
+		this.points_(
+			azElArray.collect{ |dirs| Spherical(1, *dirs).asCartesian}
+		);
+	}
+
+	// showConnections will draw triangular connections between points
 	visualize { |parent, bounds, showConnections = true|
 		if (showConnections and: { triplets.isNil }) {
 			try { this.calcTriplets } { "Could not calculate triplets".warn }
@@ -166,7 +177,7 @@ TDesign : SphericalDesign {
 TDesignLib {
 	classvar <lib;   // Array of designs, stored as Dictionaries
 	classvar <>path;
-	// TODO: resolve default path
+	// TODO: resolve default path: make relative to quark
 	classvar <defaultPath = "/Users/admin/Library/Application Support/ATK/t-designs/";
 
 	*initLib {
