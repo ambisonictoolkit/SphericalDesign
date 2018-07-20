@@ -70,6 +70,99 @@ SphericalDesign {
 		this.points_(points.collect(_.perform(method, *args)));
 	}
 
+	findAngles { |theta = 0, phi = 0|
+		^points.collect{arg point; this.vec_angle(Spherical(1, theta, phi), point)}
+	}
+
+	nearestAngle { |theta = 0, phi = 0|
+		^this.findAngles(theta, phi).minItem
+	}
+
+	nearestIndex { |theta = 0, phi = 0|
+		^this.findAngles(theta, phi).minIndex
+	}
+
+	nearestPoint { |theta = 0, phi = 0|
+		^points[this.nearestIndex(theta, phi)]
+	}
+
+	oppositeIndex { |point|
+		^this.nearestIndex((point.theta + pi).mod(2pi), point.phi.neg)
+	}
+
+	oppositePoint { |point|
+		^points[this.oppositeIndex(point)]
+	}
+
+	oppositePairsIndices {
+		var results, opposites;
+		opposites = Array.new;
+
+		points.do{|point, index|
+			opposites = opposites.add([index, this.oppositeIndex(point)])
+		};
+
+		opposites.postln;
+
+		results = Array.new;
+
+		opposites.do({ |item|
+			var test = true;
+			results.do({ |result|
+				((result == item) or: (result == item.reverse)).if({
+					test = false;
+				})
+			});
+			test.if({results = results.add(item)});
+		});
+
+		^results.sort({|a, b| a[0] < b[0]})
+	}
+
+	resetOrientation { |theta = 0, phi = 0, orientation = 'point'|
+		var nearestTheta, nearestPhi;
+		case
+		{orientation == 'point'} {
+			#nearestTheta, nearestPhi = this.nearestPoint(theta, phi).angles;
+			this.rotate(nearestTheta.neg);
+			this.tumble(nearestPhi.neg);
+			this.tumble(phi);
+			this.rotate(theta);
+		}
+	}
+
+	nearestIndices { |theta = 0, phi = 0, spread = 0.5pi, inclusive = true|
+		var lessThan;
+		inclusive.if({lessThan = '<='}, {lessThan = '<'});
+		^this.findAngles(theta, phi).selectIndices({|angle|
+			angle.perform(lessThan, spread.half)
+		})
+	}
+
+	nearestPoints { |theta = 0, phi = 0, spread = 0.5pi, inclusive = true|
+		var lessThan;
+		inclusive.if({lessThan = '<='}, {lessThan = '<'});
+		^this.points.select({|point|
+			this.vec_angle(Spherical(1, theta, phi), point).perform(lessThan, spread.half)
+		})
+	}
+
+	nearestIndicesOrder { |theta = 0, phi = 0, spread = 0.5pi, inclusive = true|
+		^this.nearestIndices(theta, phi, spread, inclusive)[this.findAngles(theta, phi)[this.nearestIndices(theta, phi, spread, inclusive)].order]
+	}
+
+	nearestPointsOrder { |theta = 0, phi = 0, spread = 0.5pi, inclusive = true|
+		^points[this.nearestIndicesOrder(theta, phi, spread, inclusive)]
+	}
+
+	findSubset { |numPoints|
+		var newTDesign;
+		newTDesign = TDesign.new(numPoints);
+		^newTDesign.points.collect{|point|
+			this.nearestPoint(point.theta, point.phi)
+		}
+	}
+
 	directions { ^points.collect(_.asSpherical) }
 
 	numPoints { ^points.size }
@@ -177,13 +270,13 @@ TDesign : SphericalDesign {
 TDesignLib {
 	classvar <lib;   // Array of designs, stored as Dictionaries
 	classvar <>path;
-	// TODO: resolve default path: make relative to quark
-	classvar <defaultPath = "/Users/admin/Library/Application Support/ATK/t-designs/";
+	// TODO: resolve default path
+	classvar <defaultPath = "~/Library/Application Support/ATK/t-designs/";
 
 	*initLib {
 		var pn, dim, nPnts, t;
 
-		this.path ?? {this.path = defaultPath};
+		this.path ?? {this.path = defaultPath.standardizePath};
 
 		if (File.exists(path)) {
 			pn = PathName(path);
