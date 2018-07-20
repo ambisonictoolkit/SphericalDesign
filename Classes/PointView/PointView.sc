@@ -1,5 +1,6 @@
 PointView : View {
-	var <points; // points should be Cartesians
+	var <points;     // points should be Cartesians
+	var <pointsNorm; // points normalized to rho = 1
 	var <connections;
 	var axisPnts;
 
@@ -33,9 +34,9 @@ PointView : View {
 	var tumbleOscT, tumbleOscPhsInc;
 	var <rotateOscWidth, tiltOscWidth, tumbleOscWidth;
 	var >rotatePhase, >tiltPhase, >tumblePhase; // phase index into the rotation oscillators
-	var <rotateMode;      // \rtt or \ypr
-	var <randomizedAxes;  // dictionary of booleans for randomize state of each axis
-	var <>randomVariance; // normalized value to apply to movement speed if randomized
+	var <rotateMode;       // \rtt or \ypr
+	var <randomizedAxes;   // dictionary of booleans for randomize state of each axis
+	var <>randomVariance;  // normalized value to apply to movement speed if randomized
 
 	// views
 	var <userView, <rotationView, <showView, <perspectiveView;
@@ -51,6 +52,7 @@ PointView : View {
 		var initOscWidth = 8.degrad;
 
 		points = [];
+		pointsNorm = [];
 		az = bz + 1; // distance to point from eye
 
 		// init  vars
@@ -451,7 +453,13 @@ PointView : View {
 	}
 
 	points_ { |cartesians|
+		var sphericals, rhoScale;
+
 		points = cartesians;
+		sphericals = points.collect(_.asSpherical);
+		rhoScale = sphericals.collect(_.rho).maxItem.reciprocal;
+		pointsNorm = sphericals.collect({ |me| me.rho_(me.rho * rhoScale).asCartesian });
+
 		connections = [(0..points.size-1)];
 		this.prUpdateColors;
 		this.refresh;
@@ -578,7 +586,7 @@ PointView : View {
 
 
 			// rotate into ambisonics coords and rotate for user
-			pnts = rotPnts.(points);
+			pnts = rotPnts.(pointsNorm);
 			axPnts = rotPnts.(axisPnts * axisScale);
 
 			// hold on to these point depths (z) for use when drawing with perspective
