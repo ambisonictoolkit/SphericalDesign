@@ -35,7 +35,6 @@ PointViewUI : View {
 		mstrLayout = VLayout().spacing_(4);
 		this.layout_(mstrLayout);
 		// this.resize_(5);
-		// this.background_(Color.gray.alpha_(0.15));
 
 		this.initWidgets;
 
@@ -86,15 +85,19 @@ PointViewUI : View {
 				// hide osc-specific views (used by oscillate)
 				widthView.visible_(false);
 				whichOscView.visible_(false);
+			} {
+				pv.rotateCyc_(false);
+				pv.tiltCyc_(false);
+				pv.tumbleCyc_(false);
+				// if disabling, reset rotation to base rotaitons
+				if (oscChk.value.not) {
+					pv.rotate_(pv.baseRotation).tilt_(pv.baseTilt).tumble_(pv.baseTumble);
+					pv.rotatePhase_(0).tiltPhase_(0).tumblePhase_(0);
+				}
 			};
 
 			[whichCycView, periodView, varyMotionView].do(_.visible_(val));
 
-			// if disabling, reset rotation to base rotaitons
-			if (val.not and: oscChk.value.not) {
-				pv.rotate_(pv.baseRotation).tilt_(pv.baseTilt).tumble_(pv.baseTumble);
-				pv.rotatePhase_(0).tiltPhase_(0).tumblePhase_(0);
-			};
 		})
 		;
 
@@ -114,20 +117,24 @@ PointViewUI : View {
 				});
 				// hide cyc-specific views (used by oscillate)
 				whichCycView.visible_(false);
+			} {
+				pv.rotateOsc_(false);
+				pv.tiltOsc_(false);
+				pv.tumbleOsc_(false);
+				// if disabling, reset rotation to base rotaitons
+				if (cycChk.value.not) {
+					// reset rotation to base rotaitons
+					pv.rotate_(pv.baseRotation).tilt_(pv.baseTilt).tumble_(pv.baseTumble);
+					pv.rotatePhase_(0).tiltPhase_(0).tumblePhase_(0);
+				}
 			};
 
 			[whichOscView, periodView, widthView, varyMotionView].do(_.visible_(val));
 
-			// if disabling, reset rotation to base rotaitons
-			if (val.not and: cycChk.value.not) {
-				// reset rotation to base rotaitons
-				pv.rotate_(pv.baseRotation).tilt_(pv.baseTilt).tumble_(pv.baseTumble);
-				pv.rotatePhase_(0).tiltPhase_(0).tumblePhase_(0);
-			};
 		})
 		;
 
-		// ""Show" check boxes
+		// "Show" check boxes
 		indicesChk = CheckBox()
 		.action_({ |cb| pv.showIndices_(cb.value) })
 		;
@@ -142,8 +149,8 @@ PointViewUI : View {
 		.action_({ |but|
 			cycChk.valueAction_(false);
 			oscChk.valueAction_(false);
-			perNb.valueAction_(30);           // default osc/cycle period
-			oscWidthDegNb.valueAction_(8);   // default osc width
+			perNb.valueAction_(30);         // default osc/cycle period
+			oscWidthDegNb.valueAction_(8);  // default osc width
 			pv.rotate_(-45.degrad).tilt_(0).tumble_(0);
 			pv.allOsc_(false);
 			pv.allCyc_(false);
@@ -350,15 +357,15 @@ PointViewUI : View {
 		radianCtls = IdentityDictionary(know: true).putPairs([
 			\rotate, PointViewRadianCtl(
 				pv, "Rotate", \rotate_, \baseRotation,
-				[2pi, -2pi].asSpec, \radians, pv.axisColors[0]
+				[2pi, -2pi].asSpec, \radians, pv.axisColors[2]
 			),
 			\tilt, PointViewRadianCtl(
 				pv, "Tilt", \tilt_, \baseTilt,
-				[-pi, pi].asSpec, \radians, pv.axisColors[1]
+				[-pi, pi].asSpec, \radians, pv.axisColors[0]
 			),
 			\tumble, PointViewRadianCtl(
 				pv, "Tumble", \tumble_, \baseTumble,
-				[-pi/2, pi/2].asSpec, \radians, pv.axisColors[2]
+				[-pi/2, pi/2].asSpec, \radians, pv.axisColors[1]
 			)
 		]);
 	}
@@ -386,7 +393,7 @@ PointViewUI : View {
 							degChk, StaticText().string_("Degrees"), nil
 						)
 					).margins_(0).spacing_(5)
-				) //.background_(Color.grey.alpha_(0.2))
+				)
 			).margins_(0)
 		);
 
@@ -396,7 +403,7 @@ PointViewUI : View {
 				radianCtls.tilt.fixedHeight_(70),
 				radianCtls.tumble.fixedHeight_(70),
 			).margins_(0)
-		) //.background_(Color.gray.alpha_(0.5))
+		)
 		;
 
 		whichCycView = View().layout_(
@@ -501,7 +508,7 @@ PointViewUI : View {
 					)
 				).margins_(5).spacing_(10)
 			).margins_(0).spacing_(2),
-		) //.background_(Color.gray.alpha_(0.5))
+		)
 		;
 
 		oscView = View().layout_(
@@ -543,7 +550,7 @@ PointViewUI : View {
 
 				varyMotionView
 			)
-		) //.background_(Color.gray.alpha_(0.5))
+		)
 		;
 
 		[
@@ -555,7 +562,6 @@ PointViewUI : View {
 
 	update {
 		| who, what ... args |
-		var val;
 
 		case
 		{who == pv} {
@@ -633,6 +639,10 @@ PointViewUI : View {
 				},
 				\tumbleDir, {
 					invTumbleChk.value = args[0].asBoolean.not;
+				},
+				\axisColors, {
+					// color axis order is x, y, z
+					[\tilt, \tumble, \rotate].do({ |rot, i| radianCtls[rot].color_(args[0][i]) });
 				}
 			)
 		}
@@ -675,8 +685,6 @@ PointViewRadianCtl : View {
 		this.initWidgets;
 		this.layItOut;
 		this.units_(units);
-		// this.background_(Color.gray.alpha_(0.15));
-		// color !? { this.background_(color) };
 		this.value_(pv.perform(getter));
 	}
 
@@ -765,6 +773,11 @@ PointViewRadianCtl : View {
 
 	label_ { |string|
 		labelTxt.string_(string);
+	}
+
+	color_ { |aColor|
+		color = aColor;
+		labelTxt.stringColor_(color);
 	}
 
 	// for updating the slider and numberbox together

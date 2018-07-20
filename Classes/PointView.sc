@@ -11,12 +11,14 @@ PointView : View {
 	var <showIndices = true;      // show indices of points
 	var <showAxes = true;         // show world axes
 	var <showConnections = false; // show connections between points
-	var perspective = true, ortho = false, orthoAxis = '+X';
+	var perspective = true, ortho = false, orthoAxis = '+X', orthoRotations, orthoOffset;
 	var xyz, <axisColors, <axisScale = 0.2;
 	var frameRate = 25;
 	var <pointColors, prPntDrawCols;
-	var colsByHue = true, huesScrambled = false;     // if the colors have been set by hue range
+	var colsByHue = true, huesScrambled = false;  // if the colors have been set by hue range
 	var <pointSize = 15, <pointDistScale = 0.333;
+	var prevColors, highlighted = false;
+	var connectionColor, indicesColor;
 
 	// movement
 	var <baseRotation, <baseTilt, <baseTumble; // radians, rotations before any movement offsets are applied
@@ -63,6 +65,9 @@ PointView : View {
 		rotateMode = \rtt;
 		randomVariance = 0.15;
 
+		connectionColor = Color.blue.alpha_(0.1);
+		indicesColor = Color.black;
+
 		userView = UserView(this, this.bounds.origin_(0@0))
 		.resize_(5)
 		.frameRate_(frameRate)
@@ -84,10 +89,9 @@ PointView : View {
 		]);
 
 		// init movement variables
-		this.rotateOscPeriod_(this.rotatePeriod); // * (initOscWidth/2pi));
-		this.tiltOscPeriod_(this.tiltPeriod); // * (initOscWidth/2pi));
-		this.tumbleOscPeriod_(this.tumblePeriod); // * (initOscWidth/2pi));
-		// rotateOscCenter = tiltOscCenter = tumbleOscCenter = 0;
+		this.rotateOscPeriod_(this.rotatePeriod);
+		this.tiltOscPeriod_(this.tiltPeriod);
+		this.tumbleOscPeriod_(this.tumblePeriod);
 		tumbleOscWidth = tiltOscWidth = rotateOscWidth = initOscWidth;
 		this.rotateMode_(rotateMode);
 
@@ -96,8 +100,7 @@ PointView : View {
 		this.tiltRate_(tiltRate);
 		this.tumbleRate_(tumbleRate);
 
-		// TODO:
-		this.initInteractions;
+		this.initInteractions; // method currently empty
 
 		this.onResize_({ this.updateCanvasDims });
 		// initialize canvas
@@ -119,8 +122,9 @@ PointView : View {
 		var rTxt, sTxt, pTxt;
 		var onCol = Color.blue;
 		var offCol = Color.gray;
-		var tempTransX;
+		var tempSkewX, tempTransX;
 
+		tempSkewX = skewX;
 		tempTransX = translateX;
 
 		this.layout_(
@@ -132,6 +136,7 @@ PointView : View {
 						cur = rotationView.visible;
 						if (cur) {
 							txt.stringColor_(offCol);
+							this.skewX_(tempSkewX);
 							this.translateX_(tempTransX);
 						} {
 							txt.stringColor_(onCol);
@@ -139,6 +144,8 @@ PointView : View {
 							perspectiveView.visible_(false);
 							sTxt.stringColor_(offCol);
 							pTxt.stringColor_(offCol);
+							tempSkewX = skewX;
+							this.skewX_(0.0);
 							tempTransX = translateX;
 							this.translateX_(0.6);
 						};
@@ -205,7 +212,9 @@ PointView : View {
 	makeShowView {
 		var axChk, axLenSl;
 		var indcChk;
-		var connChk, triBut, seqBut;
+		var connChk, triBut, seqBut, statusTxt;
+
+		statusTxt = StaticText().string_("").align_(\center).stringColor_(Color.gray);
 
 		axChk = CheckBox()
 		.action_({ |cb|
@@ -237,13 +246,25 @@ PointView : View {
 
 		triBut = Button()
 		.action_({
-			try {
-				this.connections_(
-					SphericalDesign().points_(points).calcTriplets.triplets
-				)
-			} {
-				"Couldn't calulate the triangulation of points".warn
-			};
+
+			statusTxt.string_("Triangulating points...");
+			fork({
+				try {
+					this.connections_(
+						SphericalDesign().points_(points).calcTriplets.triplets
+					);
+					statusTxt.string_("");
+				} {
+					var str = "Couldn't calulate the triangulation of points :(";
+					statusTxt.string_(str);
+					str.warn;
+					defer {
+						3.wait;
+						statusTxt.string_("");
+					};
+				};
+
+			}, AppClock);
 			connChk.valueAction_(true);
 		})
 		.states_([["Triangulation"]])
@@ -276,11 +297,12 @@ PointView : View {
 				HLayout(
 					connChk,
 					StaticText().string_("Connections").align_(\left),
-					10,
+					nil,
 					triBut,
 					10,
 					seqBut
 				),
+				statusTxt,
 			)
 		);
 	}
@@ -289,6 +311,8 @@ PointView : View {
 		var xposChk, xnegChk, yposChk, ynegChk, zposChk, znegChk;
 		var skxSl, skySl, trxSl, trySl;
 		var orDistSl, eyeDistSl;
+		var offposChk, offnegChk;
+		var pCtlView, orthoOffsetView;
 
 		#xposChk, xnegChk, yposChk, ynegChk, zposChk, znegChk =
 		['+X', '-X', '+Y', '-Y', '+Z', '-Z'].collect{ |ax|
@@ -296,15 +320,40 @@ PointView : View {
 			.action_({ |cb|
 				if (cb.value) {
 					this.setOrtho(ax);
+					orthoOffsetView.visible = true;
+					pCtlView.visible = false;
 					[xposChk, xnegChk, yposChk, ynegChk, zposChk, znegChk].do({ |me|
 						if (me != cb) {me.value = false}
 					});
 				} {
-					this.setPerspective
+					this.setPerspective;
+					orthoOffsetView.visible = false;
+					pCtlView.visible = true;
+					[offposChk, offnegChk].do(_.value_(false));
 				};
 			})
 			.value_(ortho and: { orthoAxis == ax })
 		};
+
+		offposChk = CheckBox()
+		.action_({ |cb|
+			if (cb.value) {
+				offnegChk.value_(false);
+				this.setOrtho(orthoAxis, 0.25pi.neg)
+			} {
+				this.setOrtho(orthoAxis, 0)
+			}
+		});
+
+		offnegChk = CheckBox()
+		.action_({ |cb|
+			if (cb.value) {
+				offposChk.value_(false);
+				this.setOrtho(orthoAxis, 0.25pi)
+			} {
+				this.setOrtho(orthoAxis, 0)
+			}
+		});
 
 		#skxSl, skySl, trxSl, trySl =
 		[\skewX, \skewY, \translateX, \translateY].collect{ |meth|
@@ -335,32 +384,7 @@ PointView : View {
 		perspectiveView = View().layout_(
 			HLayout(
 				VLayout(
-					StaticText().string_("Perspective").align_(\center),
-					VLayout(
-						StaticText().string_("Skew").align_(\left),
-						HLayout(
-							StaticText().string_("X"), skxSl
-						),
-						HLayout(
-							StaticText().string_("Y"), skySl
-						),
-						StaticText().string_("Translate").align_(\left),
-						HLayout(
-							StaticText().string_("X"), trxSl
-						),
-						HLayout(
-							StaticText().string_("Y"), trySl
-						),
-						StaticText().string_("Origin Distance").align_(\left),
-						orDistSl,
-						StaticText().string_("Eye Distance").align_(\left),
-						eyeDistSl
-					),
-					nil
-				),
-				25,
-				VLayout(
-					StaticText().string_("Ortho").align_(\center),
+					StaticText().string_("Ortho").font_(Font.default.bold_(true)).align_(\center).fixedWidth_(65),
 					GridLayout.columns(
 						[
 							nil,
@@ -369,13 +393,49 @@ PointView : View {
 							StaticText().string_("Z"),
 						],
 						[
-							StaticText().string_("+").align_(\center), xposChk, yposChk, zposChk
+							StaticText().string_(" +").align_(\left), xposChk, yposChk, zposChk
 						],
 						[
-							StaticText().string_("-").align_(\center), xnegChk, ynegChk, znegChk
+							StaticText().string_(" -").align_(\left), xnegChk, ynegChk, znegChk
 						],
 					),
+					orthoOffsetView = View().layout_(
+						VLayout(
+							StaticText().string_("Offset\n45˚").align_(\center),
+							GridLayout.columns(
+								[StaticText().string_(" +").align_(\left), offposChk],
+								[StaticText().string_(" -").align_(\left), offnegChk],
+							)
+						)
+					).visible_(false),
 					nil
+				),
+				25,
+				pCtlView = View().layout_(
+					VLayout(
+						StaticText().string_("Perspective").align_(\center).font_(Font.default.bold_(true)),
+						VLayout(
+							StaticText().string_("Skew").align_(\center),
+							HLayout(
+								StaticText().string_("X"), skxSl
+							),
+							HLayout(
+								StaticText().string_("Y"), skySl
+							),
+							StaticText().string_("Translate").align_(\center),
+							HLayout(
+								StaticText().string_("X"), trxSl
+							),
+							HLayout(
+								StaticText().string_("Y"), trySl
+							),
+							StaticText().string_("Origin Distance").align_(\center),
+							orDistSl,
+							StaticText().string_("Eye Distance").align_(\center),
+							eyeDistSl
+						),
+						nil
+					).margins_(0)
 				),
 				nil
 			)
@@ -429,14 +489,10 @@ PointView : View {
 
 	drawFunc {
 		^{ |v|
-			var scale;
-			var pnts, pnts_xf, pnt_depths;
+			var scale, pnts, pnts_xf, pnt_depths;
 			var axPnts, axPnts_xf, axPnts_depths;
-			var rotPnts, to2D, incStep;
-			var strRect;
-			var minPntSize;
-			var rrand;
-			var variance;
+			var rotPnts, to2D, incStep, rho, offset;
+			var strRect, minPntSize, variance;
 
 			minPntSize = pointSize * pointDistScale;
 			scale = minDim.half;
@@ -465,11 +521,13 @@ PointView : View {
 			// https://en.wikipedia.org/wiki/3D_projection
 			to2D = { |carts|
 				carts.collect{ |cart|
-					(   cart
+					if (ortho.not) {
+						cart = cart
 						+ (skewX @ skewY.neg)           // offset points within world, normalized
 						* (bz / (az + cart.z))          // add perspective
 						+ (translateX @ translateY.neg) // translate the "world"
-					).asPoint * scale                   // discard z for 2D drawing, scale to window size
+					};
+					cart.asPoint * scale; // discard z for 2D drawing, scale to window size
 				}
 			};
 
@@ -482,39 +540,40 @@ PointView : View {
 				(curRot + (step * variance.(rand))).wrap(-2pi, 2pi)
 			};
 
-			rotate = if (cycRotate) {
-				incStep.(randomizedAxes.rotate, rotate, rotateStep)
-			} { baseRotation };
+			if (ortho) {
+				#rotate, tilt, tumble = orthoRotations;
+			} {
+				rotate = if (cycRotate) {
+					incStep.(randomizedAxes.rotate, rotate, rotateStep)
+				} { baseRotation };
 
-			tilt = if (cycTilt) {
-				incStep.(randomizedAxes.tilt,   tilt,   tiltStep)
-			} { baseTilt };
+				tilt = if (cycTilt) {
+					incStep.(randomizedAxes.tilt,   tilt,   tiltStep)
+				} { baseTilt };
 
-			tumble = if (cycTumble) {
-				incStep.(randomizedAxes.tumble, tumble, tumbleStep)
-			} { baseTumble };
+				tumble = if (cycTumble) {
+					incStep.(randomizedAxes.tumble, tumble, tumbleStep)
+				} { baseTumble };
 
-			// if oscillating
-			if (oscRotate) {
-				rotatePhase = ( // 0 to 2pi
-					// rotatePhase + (rotateOscPhsInc * variance.(randomizedAxes.rotate) * rotateDir)
-					rotatePhase + (rotateOscPhsInc * rotateDir)
-				) % 2pi;
-				rotate = sin(rotatePhase) * 0.5 * rotateOscWidth + baseRotation; //rotateOscCenter;
-			};
-			if (oscTilt) {
-				tiltPhase = (
-					// tiltPhase + (tiltOscPhsInc * variance.(randomizedAxes.tilt) * tiltDir)
-					tiltPhase + (tiltOscPhsInc * tiltDir)
-				) % 2pi;
-				tilt = sin(tiltPhase) * 0.5 * tiltOscWidth + baseTilt; //tiltOscCenter;
-			};
-			if (oscTumble) {
-				tumblePhase = (
-					// tumblePhase + (tumbleOscPhsInc * variance.(randomizedAxes.tumble) * tumbleDir)
-					tumblePhase + (tumbleOscPhsInc * tumbleDir)
-				) % 2pi;
-				tumble = sin(tumblePhase) * 0.5 * tumbleOscWidth + baseTumble; //tumbleOscCenter;
+				// if oscillating
+				if (oscRotate) {
+					rotatePhase = ( // 0 to 2pi
+						rotatePhase + (rotateOscPhsInc * rotateDir)
+					) % 2pi;
+					rotate = sin(rotatePhase) * 0.5 * rotateOscWidth + baseRotation;
+				};
+				if (oscTilt) {
+					tiltPhase = (
+						tiltPhase + (tiltOscPhsInc * tiltDir)
+					) % 2pi;
+					tilt = sin(tiltPhase) * 0.5 * tiltOscWidth + baseTilt;
+				};
+				if (oscTumble) {
+					tumblePhase = (
+						tumblePhase + (tumbleOscPhsInc * tumbleDir)
+					) % 2pi;
+					tumble = sin(tumblePhase) * 0.5 * tumbleOscWidth + baseTumble;
+				};
 			};
 
 
@@ -523,7 +582,6 @@ PointView : View {
 			axPnts = rotPnts.(axisPnts * axisScale);
 
 			// hold on to these point depths (z) for use when drawing with perspective
-			// pnt_depths = sin(pnts.collect(_.z) * 0.5pi); // warp depth with a sin function, why not?
 			pnt_depths = pnts.collect(_.z);
 			axPnts_depths = axPnts.collect(_.z);
 
@@ -539,10 +597,24 @@ PointView : View {
 			// draw axes
 			if (showAxes) {
 				var lineDpth, pntDepth, pntSize;
-				var r, oxy, theta;
+				var r, oxy, theta, axStrings, refPnt;
 
 				strRect = "XX".bounds.asRect;
 				r = strRect.width / 2;
+
+				if (ortho and: { orthoOffset == 0 }) {
+					axStrings = xyz.copy;
+					switch (orthoAxis,
+						'+X', { axStrings[0] = "+X" },
+						'-X', { axStrings[0] = "-X" },
+						'+Y', { axStrings[1] = "+Y" },
+						'-Y', { axStrings[1] = "-Y" },
+						'+Z', { axStrings[2] = "+Z" },
+						'-Z', { axStrings[2] = "-Z" },
+					)
+				} {
+					axStrings = xyz;
+				};
 
 				// axPnts_xf = [origin,x,y,z]
 				axPnts_xf[1..].do{ |axPnt, i|
@@ -559,13 +631,15 @@ PointView : View {
 					Pen.stroke;
 
 					// draw axis label
-					theta = atan2(axPnt.y - axPnts_xf[0].y, axPnt.x - axPnts_xf[0].x);
-					oxy = Point(theta.cos, theta.sin) * r;
-					strRect = strRect.center_(axPnt + oxy);
+					refPnt = axPnts[i+1];
+					rho = refPnt.rho + (pntSize * if (ortho, { 2 }, { 1.2 }));
+					offset = refPnt.asPolar.rho_(rho).asPoint - refPnt;
+					strRect = strRect.center_(axPnt + offset);
 
 					Pen.fillColor_(axisColors[i]);
+
 					Pen.stringCenteredIn(
-						xyz[i],
+						axStrings[i],
 						strRect,
 						Font.default.pointSize_(
 							pntDepth.linlin(-1.0,1.0, 18, 10) // change font size with depth
@@ -575,27 +649,44 @@ PointView : View {
 				};
 			};
 
-			// draw points
+			// draw points and indices
 			strRect = "000000".bounds.asRect;
 			pnts_xf.do{ |pnt, i|
-				var pntSize;
+				var pntSize, f;
 
 				pntSize = pnt_depths[i].linlin(-1.0,1.0, pointSize, pointSize * pointDistScale);
 
 				// draw index
 				if (showIndices) {
-					Pen.fillColor_(Color.black);
-					Pen.stringLeftJustIn(
-						i.asString,
-						strRect.left_(pnt.x + pntSize).bottom_(pnt.y + pntSize),
-						Font.default.pointSize_(
-							pnt_depths[i].linlin(-1.0,1.0, 18, 10) // change font size with depth
-						)
+					Pen.fillColor_(indicesColor);
+
+					f = Font.default.pointSize_(
+						pnt_depths[i].linlin(-1.0,1.0, 18, 10) // change font size with depth
 					);
+
+
+					// index labels smoothly rotate around the point
+					// more expensive but looks better
+					rho = pnts[i].rho + (pntSize * 1.5);
+					offset = pnts[i].asPolar.rho_(rho).asPoint - pnts[i];
+					Pen.stringCenteredIn(i.asString, strRect.center_(pnt + offset), f);
+
+					// // index labels always on the outside of the sphere, but jumpy
+					// Pen.stringCenteredIn(
+					// 	i.asString,
+					// 	strRect.center_(pnt + Point(pntSize * pnts[i].x.sign, pntSize * pnts[i].y.sign)),
+					// 	f
+					// );
+
+					// // index labels always same offset from point, cheap but cluttered
+					// Pen.stringLeftJustIn(
+					// 	i.asString,
+					// 	strRect.left_(pnt.x + pntSize).bottom_(pnt.y + pntSize),
+					// 	f
+					// );
 				};
 
 				// draw point
-				// Pen.fillColor_(Color.hsv(i / (pnts_xf.size - 1), 1, 1));
 				Pen.fillColor_(prPntDrawCols.wrapAt(i));
 				Pen.fillOval(Size(pntSize, pntSize).asRect.center_(pnt));
 			};
@@ -609,15 +700,13 @@ PointView : View {
 					pDpths = set.collect(pnt_depths[_]);
 					pDpths = pDpths + pDpths.rotate(-1) / 2;
 
-					Pen.strokeColor_(Color.blue.alpha_(0.1));
+					Pen.strokeColor_(connectionColor);
 					Pen.moveTo(pnts_xf.at(set[0]));
 
 					set.rotate(-1).do{ |idx, j|
 						// change line width with depth
-						Pen.width_(pDpths[j].linlin(-1.0,1.0, 4, 0.5));
+						Pen.width_(pDpths[j].linlin(-1.0,1.0, 3.5, 0.5));
 						Pen.lineTo(pnts_xf[idx]);
-						// stroke in the loop to retain independent
-						// line widths within the set
 						Pen.stroke;
 						Pen.moveTo(pnts_xf[idx]);
 					};
@@ -682,14 +771,33 @@ PointView : View {
 	}
 
 	// axis: '+X', '-X', '+Y', '-Y', '+Z', '-Z'
-	setOrtho_ { |axis|
+	// offset: additional rotation after orienting view along axis, radians
+	setOrtho { |axis, offset = 0|
 		ortho = true;
-		orthoAxis = axis;
 		perspective = false;
+
+		orthoAxis = axis;
+		orthoOffset = offset;
+
+		// in [R,T,T]
+		orthoRotations = switch (axis,
+			'+X', { [0 + offset, 0, 0] },
+			'-X', { [pi + offset, 0, 0] },
+			'+Y', { [0.5pi.neg + offset, 0, 0] },
+			'-Y', { [0.5pi + offset, 0, 0] },
+			'+Z', { [0, 0, 0.5pi.neg + offset] },
+			'-Z', { [0, 0, 0.5pi + offset] }
+		);
+
+		this.changed(\ortho, true);
+		this.refresh;
 	}
 
 	setPerspective {
 		perspective = true;
+		ortho = false;
+		this.changed(\ortho, false);
+		this.refresh;
 	}
 
 	/* View movement controls */
@@ -842,25 +950,16 @@ PointView : View {
 	}
 
 	rotateOscWidth_  { |widthRad|
-		// var deltaFactor;
-		// deltaFactor = widthRad / rotateOscWidth;
 		rotateOscWidth = widthRad;
 		this.changed(\oscRotateWidth, widthRad);
-		// this.rotateOscPeriod_(rotateOscT * deltaFactor)
 	}
 	tiltOscWidth_  { |widthRad|
-		// var deltaFactor;
-		// deltaFactor = widthRad / tiltOscWidth;
 		tiltOscWidth = widthRad;
 		this.changed(\oscTiltWidth, widthRad);
-		// this.tiltOscPeriod_(tiltOscT * deltaFactor)
 	}
 	tumbleOscWidth_  { |widthRad|
-		// var deltaFactor;
-		// deltaFactor = widthRad / tumbleOscWidth;
 		tumbleOscWidth = widthRad;
 		this.changed(\oscTumbleWidth, widthRad);
-		// this.tumbleOscPeriod_(tumbleOscT * deltaFactor)
 	}
 	allOscWidth_ { |widthRad|
 		this.rotateOscWidth_(widthRad).tiltOscWidth_(widthRad).tumbleOscWidth_(widthRad);
@@ -915,6 +1014,7 @@ PointView : View {
 
 	axisColors_ { |colorArray|
 		axisColors = colorArray;
+		this.changed(\axisColors, *axisColors);
 		this.refresh;
 	}
 
@@ -936,9 +1036,8 @@ PointView : View {
 
 	// arrayOfColors can be a Color, Array of Colors.
 	// If (arrayOfColors.size != points.size), points will wrap through the
-	// color array, or be grouped into each color if colorSets has been set
+	// color array, or be grouped into each color if colorGroups_ has been set
 	pointColors_ { |arrayOfColors|
-
 		if (arrayOfColors.isKindOf(Color)) {
 			arrayOfColors = [arrayOfColors];
 		};
@@ -974,7 +1073,7 @@ PointView : View {
 
 	// Set groups of point indices which belong to each color in
 	// pointColors array.
-	// defaultColor is a Color for points not includes in arraysOfIndices
+	// defaultColor is a Color for points not included in arraysOfIndices
 	colorGroups_ { |arraysOfIndices, defaultColor = (Color.black)|
 
 		prPntDrawCols = points.size.collect{defaultColor};
@@ -989,6 +1088,27 @@ PointView : View {
 			}
 		};
 		colsByHue = false;
+		this.refresh;
+	}
+
+	highlightPoints_ { |arrayOfIndices, highlightColor = (Color.red), defaultColor = (Color.gray.alpha_(0.4))|
+		prevColors = prPntDrawCols.copy;
+		this.pointColors_(highlightColor);
+		this.colorGroups_([arrayOfIndices], defaultColor);
+		highlighted = true;
+	}
+
+	removeHighlight {
+		if (highlighted) { this.pointColors_(prevColors) }
+	}
+
+	connectionColor_ { |aColor|
+		connectionColor = aColor;
+		this.refresh;
+	}
+
+	indicesColor_ { |aColor|
+		indicesColor = aColor;
 		this.refresh;
 	}
 
@@ -1007,10 +1127,6 @@ PointView : View {
 			prPntDrawCols = points.size.collect(pointColors.wrapAt(_));
 			^this
 		};
-
-		if (prPntDrawCols.size != points.size) {
-
-		}
 	}
 
 	// for UI controls
@@ -1021,40 +1137,48 @@ PointView : View {
 
 	// TODO:
 	initInteractions {
-		userView.mouseMoveAction_({
-			|v,x,y,modifiers|
-			mouseMovePnt = x@y;
-			// mouseMoveAction.(v,x,y,modifiers)
-		});
-
-		userView.mouseDownAction_({
-			|v,x,y, modifiers, buttonNumber, clickCount|
-			mouseDownPnt = x@y;
-			// mouseDownAction.(v,x,y, modifiers, buttonNumber, clickCount)
-		});
-
-		userView.mouseUpAction_({
-			|v,x,y, modifiers|
-			mouseUpPnt = x@y;
-			// mouseUpAction.(v,x,y,modifiers)
-		});
-
-		userView.mouseWheelAction_({
-			|v, x, y, modifiers, xDelta, yDelta|
-			// this.stepByScroll(v, x, y, modifiers, xDelta, yDelta);
-		});
-
-		// NOTE: if overwriting this function, include a call to
-		// this.stepByArrowKey(key) to retain key inc/decrement capability
-		userView.keyDownAction_ ({
-			|view, char, modifiers, unicode, keycode, key|
-			// this.stepByArrowKey(key);
-		});
-
+		// userView.mouseMoveAction_({
+		// 	|v,x,y,modifiers|
+		// 	mouseMovePnt = x@y;
+		// 	// mouseMoveAction.(v,x,y,modifiers)
+		// });
+		//
+		// userView.mouseDownAction_({
+		// 	|v,x,y, modifiers, buttonNumber, clickCount|
+		// 	mouseDownPnt = x@y;
+		// 	// mouseDownAction.(v,x,y, modifiers, buttonNumber, clickCount)
+		// });
+		//
+		// userView.mouseUpAction_({
+		// 	|v,x,y, modifiers|
+		// 	mouseUpPnt = x@y;
+		// 	// mouseUpAction.(v,x,y,modifiers)
+		// });
+		//
+		// userView.mouseWheelAction_({
+		// 	|v, x, y, modifiers, xDelta, yDelta|
+		// 	// this.stepByScroll(v, x, y, modifiers, xDelta, yDelta);
+		// });
+		//
+		// // NOTE: if overwriting this function, include a call to
+		// // this.stepByArrowKey(key) to retain key inc/decrement capability
+		// userView.keyDownAction_ ({
+		// 	|view, char, modifiers, unicode, keycode, key|
+		// 	// this.stepByArrowKey(key);
+		// });
 	}
 
 	refresh {
 		userView.animate.not.if{ userView.refresh };
+	}
+
+	update { |who, what ... args|
+		switch (what,
+			\points, {
+				this.points_(args[0])
+
+			}
+		)
 	}
 
 }
@@ -1066,66 +1190,19 @@ PointView : View {
 Usage
 
 (
-// p = TDesign(25).points;
-p = [
-	[0,0,1], [0,0,-1],
-	[0,1,0], [0,-1,0],
-	[1,0,0], [-1,0,0],
-].collect(_.asCartesian);
-v = PointView(bounds: [0,0, 400, 500].asRect).front.points_(p);
-v.eyeDist = 2;
-v.originDist = 2;
-v.cycRotate = true;
-v.showIndices = true;
-v.showAxes = true;
+t = TDesign(45).visualize(bounds: [200,200, 1200,700].asRect, showConnections: false)
 )
 
-v.skewX = 0.85;
-v.skewY = 0.85;
-v.eyeDist = 1.5;
-v.originDist = 2.8;
 
-v.eyeDist = 1;
-v.originDist = 1;
+t.view.highlightPoints_( (4..7), Color.yellow )
+// highlight all points +Z
+t.view.highlightPoints_((0..t.numPoints-1).select({|i| t.points[i].z > 0}))
 
+// connect pairs
+t.view.connections_((0..t.points.size-1).clump(2))
 
-(
-d = [
-	[ -18, 0 ], [ -54, 0 ], [ -90, 0 ], [ -126, 0 ], [ -162, 0 ], [ -198, 0 ], [ -234, 0 ], [ -270, 0 ], [ -306, 0 ], [ -342, 0 ],
-	[ 0, -10 ], [ -72, -10 ], [ -144, -10 ], [ -216, -10 ], [ -288, -10 ],
-	[ -45, 45 ], [ -135, 45 ], [ -225, 45 ], [ -315, 45 ], [ 0, 90 ]
-];
-a = VBAPSpeakerArray.new(3, d);
-a.choose_ls_triplets;
-p = d.degrad.collect({ |dir| Spherical(1, *dir).asCartesian});
-// v = PointView(bounds: [0,0, 400, 500].asRect).front.points_(p);
-v = PointView().front.points_(p);
-v.eyeDist = 2;
-v.originDist = 2;
-v.cycRotate = true;
-v.showIndices = true;
-v.connections = a.sets.collect(_.chanOffsets.asInt);
-v.translateY = 0.35;
-v.skewY = -0.85;
-v.frameRate = 135;
-v.axisScale = 0.333;
-)
+t.rotate(0.25pi)
+t.tilt(-0.25pi)
+t.reset
 
-// TODO:
-
-// controls:
-// - RTT controls
-// - auto RTT with range/rate params
-// - show axes
-// - eye distance (perspective)
-// features:
-// - normalize input points (for drawing, not display)
-// - orthogonal views: looking +/- XYZ axes (XY plane, XZ plane, etc.)
-// - draw mesh in bundled points
-// - specify point colors in groups or individually
-// enhancements:
-// - draw furthest points first so closer points drawn on top
-// - break lines it segments to accentuate distance (axes especially)
-// - show point info on mouseOver
-// - add -highlightConnections(connection array) to emphasize a connection set (such as those triangles containing a VBAP source)
 */
