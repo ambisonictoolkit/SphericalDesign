@@ -1099,7 +1099,7 @@ PointView : View {
 		this.refresh;
 	}
 
-	highlightPoints_ { |arrayOfIndices, highlightColor = (Color.red), defaultColor = (Color.gray.alpha_(0.4))|
+	highlightPoints { |arrayOfIndices, highlightColor = (Color.red), defaultColor = (Color.gray.alpha_(0.25))|
 		prevColors = prPntDrawCols.copy;
 		this.pointColors_(highlightColor);
 		this.colorGroups_([arrayOfIndices], defaultColor);
