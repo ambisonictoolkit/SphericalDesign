@@ -70,126 +70,96 @@ SphericalDesign {
 		this.points_(points.collect(_.perform(method, *args)));
 	}
 
-	findAngles { |theta = 0, phi = 0|
-		^points.collect{arg point; this.vec_angle(Spherical(1, theta, phi), point)}
-	}
-
-	nearestAngle { |theta = 0, phi = 0|
-		^this.findAngles(theta, phi).minItem
-	}
-
-	nearestIndex { |theta = 0, phi = 0|
-		^this.findAngles(theta, phi).minIndex
-	}
-
-	nearestPoint { |theta = 0, phi = 0|
-		^points[this.nearestIndex(theta, phi)]
-	}
-
-	oppositeIndex { |point|
-		^this.nearestIndex((point.theta + pi).mod(2pi), point.phi.neg)
-	}
-
-	oppositePoint { |point|
-		^points[this.oppositeIndex(point)]
-	}
-
-	oppositePairsIndices {
-		var results, opposites;
-		opposites = Array.new;
-
-		points.do{|point, index|
-			opposites = opposites.add([index, this.oppositeIndex(point)])
-		};
-
-		opposites.postln;
-
-		results = Array.new;
-
-		opposites.do({ |item|
-			var test = true;
-			results.do({ |result|
-				((result == item) or: (result == item.reverse)).if({
-					test = false;
-				})
-			});
-			test.if({results = results.add(item)});
-		});
-
-		^results.sort({|a, b| a[0] < b[0]})
-	}
-
-	resetOrientation { |theta = 0, phi = 0, orientation = 'point'|
-		var nearestTheta, nearestPhi;
-		case
-		{orientation == 'point'} {
-			#nearestTheta, nearestPhi = this.nearestPoint(theta, phi).angles;
-			this.rotate(nearestTheta.neg);
-			this.tumble(nearestPhi.neg);
-			this.tumble(phi);
-			this.rotate(theta);
-		}
-	}
-
-	nearestIndices { |theta = 0, phi = 0, spread = 0.5pi, inclusive = true|
-		var lessThan;
-		inclusive.if({lessThan = '<='}, {lessThan = '<'});
-		^this.findAngles(theta, phi).selectIndices({|angle|
-			angle.perform(lessThan, spread.half)
-		})
-	}
-
-	nearestPoints { |theta = 0, phi = 0, spread = 0.5pi, inclusive = true|
-		var lessThan;
-		inclusive.if({lessThan = '<='}, {lessThan = '<'});
-		^this.points.select({|point|
-			this.vec_angle(Spherical(1, theta, phi), point).perform(lessThan, spread.half)
-		})
-	}
-
-	nearestIndicesOrder { |theta = 0, phi = 0, spread = 0.5pi, inclusive = true|
-		^this.nearestIndices(theta, phi, spread, inclusive)[this.findAngles(theta, phi)[this.nearestIndices(theta, phi, spread, inclusive)].order]
-	}
-
-	nearestPointsOrder { |theta = 0, phi = 0, spread = 0.5pi, inclusive = true|
-		^points[this.nearestIndicesOrder(theta, phi, spread, inclusive)]
-	}
-
-	findSubset { |numPoints|
-		var newTDesign;
-		newTDesign = TDesign.new(numPoints);
-		^newTDesign.points.collect{|point|
-			this.nearestPoint(point.theta, point.phi)
-		}
-	}
-
-	directions { ^points.collect(_.asSpherical) }
-
 	numPoints { ^points.size }
 
 	size { ^points.size }
 
-	// reset points to position when first created
+	// reset points to position when first created, e.g. after applying rotation
 	reset { this.points_(initPoints) }
-
-	prSaveInitState { initPoints = points }
 
 	points_ { |cartesianArray|
 		points = cartesianArray;
 		this.changed(\points, points); // TODO: avoid broadcasting points?
 	}
 
-	// azElArray: 2D array containing [azimuth, elevation] (theta, phi) pairs
-	directions_ { |azElArray|
+	// azInArray: 2D array containing [azimuth, inclination] (theta, phi) pairs
+	directions_ { |azInArray|
 		this.points_(
-			azElArray.collect{ |dirs| Spherical(1, *dirs).asCartesian}
+			azInArray.collect{ |dirs| Spherical(1, *dirs).asCartesian}
 		);
+	}
+
+	// return a 2D array containing [azimuth, inclination] (theta, phi) pairs
+	directions {
+		^points.collect({ |cart|
+			var sph = cart.asSpherical;
+			[sph.theta, sph.phi]
+		})
+	}
+
+	vectorAngles { |theta = 0, phi = 0|
+		^points.collect{ |point| this.vec_angle(Spherical(1, theta, phi), point) }
+	}
+
+	nearestIndex { |theta = 0, phi = 0|
+		^this.vectorAngles(theta, phi).minIndex
+	}
+
+	nearestPoint { |theta = 0, phi = 0|
+		^points[this.nearestIndex(theta, phi)]
+	}
+
+	indicesWithin { |theta = 0, phi = 0, spread = 0.5pi, inclusive = true|
+		var lessThan, thresh;
+
+		lessThan = if (inclusive) { '<=' } { '<' };
+		thresh = spread.half;
+
+		^this.vectorAngles(theta, phi).selectIndices({ |angle|
+			angle.perform(lessThan, thresh)
+		})
+	}
+
+	pointsWithin { |theta = 0, phi = 0, spread = 0.5pi, inclusive = true|
+		^this.points.at(
+			this.indicesWithin(theta, phi, spread, inclusive)
+		)
+	}
+
+	// like indicesWithin, but indices are sorted from nearest to farthest point
+	nearestIndicesWithin { |theta = 0, phi = 0, spread = 0.5pi, inclusive = true|
+		var lessThan, thresh, vecAngles, sortIndices, ret;
+		var farthestIndex = 0;
+
+		lessThan = if (inclusive) { '<=' } { '<' };
+		thresh = spread.half;
+
+		vecAngles = this.vectorAngles(theta, phi);
+		sortIndices = vecAngles.order;
+
+		ret = [];
+
+		while ({ vecAngles[sortIndices[farthestIndex]].perform(lessThan, thresh) }, {
+			ret = ret.add(sortIndices[farthestIndex]);
+			farthestIndex = farthestIndex + 1;
+		});
+
+		^ret
+	}
+
+	// like nearestIndicesWithin, but indices are sorted from nearest to farthest point
+	nearestPointsWithin { |theta = 0, phi = 0, spread = 0.5pi, inclusive = true|
+		^this.points.at(
+			this.nearestIndicesWithin(theta, phi, spread, inclusive)
+		)
 	}
 
 	// showConnections will draw triangular connections between points
 	visualize { |parent, bounds, showConnections = true|
 		if (showConnections and: { triplets.isNil }) {
-			try { this.calcTriplets } { "Could not calculate triplets".warn }
+			"\nTriangulating points to display connections...".postln;
+			try { this.calcTriplets } { "Could not calculate triplets".warn };
+			"...done".postln;
 		};
 
 		view = PointView(parent, bounds).points_(points).front;
@@ -201,6 +171,7 @@ SphericalDesign {
 		};
 	}
 
+	prSaveInitState { initPoints = points }
 }
 
 
