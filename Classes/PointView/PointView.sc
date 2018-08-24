@@ -18,6 +18,7 @@ PointView : View {
 	var <pointColors, prPntDrawCols;
 	var colsByHue = true, huesScrambled = false;  // if the colors have been set by hue range
 	var <pointSize = 15, <pointDistScale = 0.333;
+	var renderDistanceSize = true;
 	var prevColors, highlighted = false;
 	var connectionColor, indicesColor;
 
@@ -313,24 +314,30 @@ PointView : View {
 		var xposChk, xnegChk, yposChk, ynegChk, zposChk, znegChk;
 		var skxSl, skySl, trxSl, trySl;
 		var orDistSl, eyeDistSl;
-		var offposChk, offnegChk;
-		var pCtlView, orthoOffsetView;
+		var offposChk, offnegChk, distChk;
+		var pCtlView, geomView, orthoOffsetView;
 
 		#xposChk, xnegChk, yposChk, ynegChk, zposChk, znegChk =
 		['+X', '-X', '+Y', '-Y', '+Z', '-Z'].collect{ |ax|
 			CheckBox()
 			.action_({ |cb|
 				if (cb.value) {
-					this.setOrtho(ax);
+					this.setOrtho(ax,
+						if (offposChk.value) {
+							0.25pi.neg
+						} {
+							if (offnegChk.value) { 0.25pi } { 0 }
+						}
+					);
 					orthoOffsetView.visible = true;
-					pCtlView.visible = false;
+					geomView.visible = false;
 					[xposChk, xnegChk, yposChk, ynegChk, zposChk, znegChk].do({ |me|
 						if (me != cb) {me.value = false}
 					});
 				} {
 					this.setPerspective;
 					orthoOffsetView.visible = false;
-					pCtlView.visible = true;
+					geomView.visible = true;
 					[offposChk, offnegChk].do(_.value_(false));
 				};
 			})
@@ -356,6 +363,12 @@ PointView : View {
 				this.setOrtho(orthoAxis, 0)
 			}
 		});
+
+		distChk = CheckBox()
+		.action_({ |cb|
+			this.renderDistanceSize_(cb.value)
+		})
+		.value_(renderDistanceSize);
 
 		#skxSl, skySl, trxSl, trySl =
 		[\skewX, \skewY, \translateX, \translateY].collect{ |meth|
@@ -416,25 +429,32 @@ PointView : View {
 				pCtlView = View().layout_(
 					VLayout(
 						StaticText().string_("Perspective").align_(\center).font_(Font.default.bold_(true)),
-						VLayout(
-							StaticText().string_("Skew").align_(\center),
-							HLayout(
-								StaticText().string_("X"), skxSl
-							),
-							HLayout(
-								StaticText().string_("Y"), skySl
-							),
-							StaticText().string_("Translate").align_(\center),
-							HLayout(
-								StaticText().string_("X"), trxSl
-							),
-							HLayout(
-								StaticText().string_("Y"), trySl
-							),
-							StaticText().string_("Origin Distance").align_(\center),
-							orDistSl,
-							StaticText().string_("Eye Distance").align_(\center),
-							eyeDistSl
+						HLayout(
+							distChk,
+							StaticText().string_("Render size with distance").align_(\left),
+						),
+						10,
+						geomView = View().layout_(
+							VLayout(
+								StaticText().string_("Skew").align_(\center),
+								HLayout(
+									StaticText().string_("X"), skxSl
+								),
+								HLayout(
+									StaticText().string_("Y"), skySl
+								),
+								StaticText().string_("Translate").align_(\center),
+								HLayout(
+									StaticText().string_("X"), trxSl
+								),
+								HLayout(
+									StaticText().string_("Y"), trySl
+								),
+								StaticText().string_("Origin Distance").align_(\center),
+								orDistSl,
+								StaticText().string_("Eye Distance").align_(\center),
+								eyeDistSl
+							).margins_(0)
 						),
 						nil
 					).margins_(0)
@@ -662,7 +682,11 @@ PointView : View {
 			pnts_xf.do{ |pnt, i|
 				var pntSize, f;
 
-				pntSize = pnt_depths[i].linlin(-1.0,1.0, pointSize, pointSize * pointDistScale);
+				pntSize = if (renderDistanceSize) {
+					pnt_depths[i].linlin(-1.0,1.0, pointSize, pointSize * pointDistScale)
+				} {
+					pointSize
+				};
 
 				// draw index
 				if (showIndices) {
@@ -672,7 +696,6 @@ PointView : View {
 						pnt_depths[i].linlin(-1.0,1.0, 18, 10) // change font size with depth
 					);
 
-
 					// index labels smoothly rotate around the point
 					// more expensive but looks better
 					rho = pnts[i].rho + (pntSize * 1.5);
@@ -680,18 +703,10 @@ PointView : View {
 					Pen.stringCenteredIn(i.asString, strRect.center_(pnt + offset), f);
 
 					// // index labels always on the outside of the sphere, but jumpy
-					// Pen.stringCenteredIn(
-					// 	i.asString,
-					// 	strRect.center_(pnt + Point(pntSize * pnts[i].x.sign, pntSize * pnts[i].y.sign)),
-					// 	f
-					// );
+					// Pen.stringCenteredIn(i.asString, strRect.center_(pnt + Point(pntSize * pnts[i].x.sign, pntSize * pnts[i].y.sign)), f);
 
 					// // index labels always same offset from point, cheap but cluttered
-					// Pen.stringLeftJustIn(
-					// 	i.asString,
-					// 	strRect.left_(pnt.x + pntSize).bottom_(pnt.y + pntSize),
-					// 	f
-					// );
+					// Pen.stringLeftJustIn(i.asString,	strRect.left_(pnt.x + pntSize).bottom_(pnt.y + pntSize), f);
 				};
 
 				// draw point
@@ -776,6 +791,12 @@ PointView : View {
 		pointDistScale = norm;
 		this.refresh;
 		this.changed(\pointDistScale, norm);
+	}
+
+	renderDistanceSize_ { |bool|
+		renderDistanceSize = bool;
+		this.refresh;
+		this.changed(\renderDistanceSize, bool);
 	}
 
 	// axis: '+X', '-X', '+Y', '-Y', '+Z', '-Z'
@@ -1198,7 +1219,7 @@ PointView : View {
 Usage
 
 (
-t = TDesign(45).visualize(bounds: [200,200, 1200,700].asRect, showConnections: false)
+t = TDesign(8).visualize(bounds: [200,200, 1200,700].asRect, showConnections: false)
 )
 
 

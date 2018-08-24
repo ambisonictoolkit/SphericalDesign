@@ -49,7 +49,7 @@ Unversity of California at Berkeley
 	International Conference on Auditory Displays -98.
 	*/
 	// Slight refactor of the original choose_ls_triplets method -mtm
-	calcTriplets {
+	calcTriplets { |minSideLength = 0.01|
 		var i1, j1, k1, m, li, table_size;
 		var vb1,vb2,tmp_vec; // instances of VBAPSpeaker
 		var connections;

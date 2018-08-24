@@ -45,8 +45,7 @@ SphericalDesign {
 	var initPoints;
 	var <design;
 	var <view;
-	var <triplets; // methods for calculating triplets found in extSphDesigns
-	var <>minSideLength = 0.01; // used in calcTriplets
+	var <triplets; // methods for calculating triplets found in extSphericalDesign
 
 	*new {
 		^super.new
