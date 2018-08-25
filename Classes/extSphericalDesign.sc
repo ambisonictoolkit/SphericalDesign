@@ -104,6 +104,9 @@ Unversity of California at Berkeley
 		};
 
 		// sort by distance
+		// BUG FIX: if (connections[i][j] == 1) above if false, no \d key is added so sorting fails
+		// TODO: there's likely a more efficient way of handling this on a structural level
+		distance_table.select({|dict| dict.size == 0}).do(distance_table.remove(_));
 		distance_table.sortBy(\d);
 
 		/* disconnecting connections which are crossing shorter ones,
