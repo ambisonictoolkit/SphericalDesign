@@ -48,33 +48,54 @@ Unversity of California at Berkeley
 	Loudspeakers Using VBAP: A Case Study with DIVA Project",
 	International Conference on Auditory Displays -98.
 	*/
+
 	// Slight refactor of the original choose_ls_triplets method -mtm
 	calcTriplets { |minSideLength = 0.01|
-		var i1, j1, k1, m, li, table_size;
-		var vb1,vb2,tmp_vec; // instances of VBAPSpeaker
-		var connections;
-		var distance_table;
-		var distance_table_i;
-		var distance_table_j;
-		var distance;
-		var step, dict;
-		var numPnts;
+		var i1, j1, k1, m, li;
+		var distance_table, table_size, connections;
+		var distance, step, dict, numPnts;
 
 		numPnts = this.numPoints;
-		connections = Array.fill(numPnts, {Array.newClear(numPnts)});
+
+		// warn of high calculation times
+		if (numPnts > 49) {
+			var pntEnv, sec;
+
+			// rough graph of calc times
+			pntEnv = Env(
+				[ 0, 5,  9,  14, 22, 44,  80,  420 ],               // sec
+				[    50, 60, 70, 80, 100, 120, 180 ].differentiate, // numPoints
+				'lin'
+			);
+			sec = if (numPnts < 181) { pntEnv[numPnts] };
+
+			postf(
+				"Calculating point triangulation...\nThis could take roughly % %\n",
+				*if (sec.notNil) {
+					if (sec < 60) {
+						[sec, "sec"]
+					} {
+						[(sec / 60).round(0.01), "min"]
+					}
+				} {
+					["> 7", "min!"]
+				}
+			);
+		};
+
+		connections = Array.fill(numPnts, { Array.newClear(numPnts) });
 
 		triplets = nil;
-		for(0.0, numPnts -1, {|i|
-			for(i+1.0, numPnts -1, {|j|
-				for(j+1.0, numPnts -1, {|k|
-					if(this.vol_p_side_lgth(i,j,k) > minSideLength, {
+		for(0.0, numPnts - 1, { |i|
+			for(i+1.0, numPnts - 1, { |j|
+				for(j+1.0, numPnts - 1, { |k|
+					if (this.vol_p_side_lgth(i,j,k) > minSideLength, {
 						connections[i][j]=1;
 						connections[j][i]=1;
 						connections[i][k]=1;
 						connections[k][i]=1;
 						connections[j][k]=1;
 						connections[k][j]=1;
-						//"i: % j: %, k: %\n".postf(i, j, k);
 						triplets = triplets.add([i,j,k]);
 					});
 				});
@@ -82,31 +103,29 @@ Unversity of California at Berkeley
 		});
 
 		/* calculate distancies between all lss and sorting them */
-		distance_table = Array.newClear((numPnts * (numPnts - 1)) / 2);
-		distance_table.size.do{|i| distance_table[i] = Dictionary()};
-
 		table_size = ((numPnts - 1) * (numPnts)) / 2;
+		distance_table = Array.newClear((numPnts * (numPnts - 1)) / 2);
 		step = 0;
 
-		numPnts.do{|i|
+		numPnts.do{ |i|
 			for(i+1, numPnts - 1, { |j|
 				if (connections[i][j] == 1) {
-					distance = this.vec_angle(points[i],points[j]).abs;
-					dict = distance_table[step];
-					dict[\d] = distance;
+					dict = Dictionary();
+					dict[\d] = this.vec_angle(points[i],points[j]).abs;
 					dict[\i] = i;
 					dict[\j] = j;
+					distance_table[step] = dict;
+					step = step + 1;
 				} {
+					// keeping track of table size independently
+					// is for some reason faster
 					table_size = table_size - 1;
 				};
-				step = step + 1;
 			});
 		};
 
 		// sort by distance
-		// BUG FIX: if (connections[i][j] == 1) above if false, no \d key is added so sorting fails
-		// TODO: there's likely a more efficient way of handling this on a structural level
-		distance_table.select({|dict| dict.size == 0}).do(distance_table.remove(_));
+		distance_table = distance_table[..step-1]; // trim to only those which were valid
 		distance_table.sortBy(\d);
 
 		/* disconnecting connections which are crossing shorter ones,
@@ -119,13 +138,21 @@ Unversity of California at Berkeley
 
 			if(connections[fst_ls][sec_ls] == 1, {
 				numPnts.do{ |j|
-					for(j+1.0, numPnts - 1, {|k|
-						if( (j!=fst_ls) && (k != sec_ls) && (k!=fst_ls) && (j != sec_ls), {
-							if(this.lines_intersect(fst_ls, sec_ls, j,k), {
+					for(j+1.0, numPnts - 1, { |k|
+						if (
+							(j != fst_ls) and: {
+								(k != sec_ls) and: {
+									(k != fst_ls) and: {
+										(j != sec_ls)
+									}
+								}
+							}
+						) {
+							if (this.lines_intersect(fst_ls, sec_ls, j, k), {
 								connections[j][k] = 0;
 								connections[k][j] = 0;
 							});
-						});
+						};
 					});
 				};
 			});
@@ -133,13 +160,20 @@ Unversity of California at Berkeley
 
 		/* remove triangles which had crossing sides
 		with smaller triangles or include loudspeakers */
-		triplets = triplets.reject({|set, idx|
+		triplets = triplets.reject({ |set, idx|
 			var test;
 			i1 = set[0];
 			j1 = set[1];
 			k1 = set[2];
-			test = (connections[i1][j1] == 0) || (connections[i1][k1] == 0) || (connections[j1][k1] == 0)
-			|| this.any_ls_inside_triplet(i1,j1,k1);
+			test = (
+				(connections[i1][j1] == 0) or: {
+					(connections[i1][k1] == 0) or: {
+						(connections[j1][k1] == 0) or: {
+							this.any_ls_inside_triplet(i1,j1,k1)
+						}
+					}
+				}
+			);
 			test
 		});
 	}
@@ -193,16 +227,19 @@ Unversity of California at Berkeley
 		dist_lnv3 = (this.vec_angle(neg_v3, points[l]));
 
 		/* if one of loudspeakers is close to crossing point, don't do anything */
-		if((abs(dist_iv3) <= 0.01) || (abs(dist_jv3) <= 0.01) ||
-			(abs(dist_kv3) <= 0.01) || (abs(dist_lv3) <= 0.01) ||
+		if( (abs(dist_iv3) <= 0.01)  || (abs(dist_jv3) <= 0.01) ||
+			(abs(dist_kv3) <= 0.01)  || (abs(dist_lv3) <= 0.01) ||
 			(abs(dist_inv3) <= 0.01) || (abs(dist_jnv3) <= 0.01) ||
 			(abs(dist_knv3) <= 0.01) || (abs(dist_lnv3) <= 0.01), {^false});
 
 		/* if crossing point is on line between both loudspeakers return 1 */
-		if (((abs(dist_ij - (dist_iv3 + dist_jv3)) <= 0.01 ) &&
-			(abs(dist_kl - (dist_kv3 + dist_lv3))  <= 0.01)) ||
-		((abs(dist_ij - (dist_inv3 + dist_jnv3)) <= 0.01)  &&
-			(abs(dist_kl - (dist_knv3 + dist_lnv3)) <= 0.01 )), { ^true}, {^false});
+		if( (
+			(abs(dist_ij - (dist_iv3 + dist_jv3)) <= 0.01 ) &&
+			(abs(dist_kl - (dist_kv3 + dist_lv3))  <= 0.01)
+		) || (
+			(abs(dist_ij - (dist_inv3 + dist_jnv3)) <= 0.01)  &&
+			(abs(dist_kl - (dist_knv3 + dist_lnv3)) <= 0.01 )
+		), { ^true }, { ^false });
 
 	}
 
@@ -229,10 +266,12 @@ Unversity of California at Berkeley
 
 		xprod = this.unq_cross_prod(points[i], points[j]);
 		volper = abs(this.vec_prod(xprod, points[k]));
-		lgth = (abs(this.vec_angle(points[i], points[j]))
+		lgth = (
+			abs(this.vec_angle(points[i], points[j]))
 			+ abs(this.vec_angle(points[i], points[k]))
-			+ abs(this.vec_angle(points[j], points[k])));
-		if(lgth > 0.00001, { ^(volper / lgth)}, { ^0.0 });
+			+ abs(this.vec_angle(points[j], points[k]))
+		);
+		if(lgth > 0.00001, { ^(volper / lgth) }, { ^0.0 });
 	}
 
 	any_ls_inside_triplet { |a, b, c|
