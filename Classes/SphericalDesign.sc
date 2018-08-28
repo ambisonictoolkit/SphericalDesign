@@ -215,17 +215,19 @@ TDesign : SphericalDesign {
 
 		case
 		{ matches.size == 0 } {
-			"[TDesign:-init] No t-designs found in TDesignLib.lib matching "
-			"nPnts %, t %, dim %".format(nPnts, t, dim).throw
+			Error(
+				format("[TDesign:-init] No t-designs found in TDesignLib.lib matching: "
+				"nPnts %, t %, dim %", nPnts, t, dim)
+			).throw;
 		}
 		{ matches.size > 1 } {
 			var e;
 			e = Error(
 				"[TDesign:-init] Multiple t-designs found, specify both 'nPnts' "
-				"and 't' to return one result. Available designs:"
+				"and 't' to return one result. 't' of available designs:"
 			);
 			e.errorString.postln;
-			matches.do(_.postln);
+			matches.do({ |design| postf("t: %\n", design[\t]) });
 			e.throw;
 		}
 		{ m = matches[0] };
