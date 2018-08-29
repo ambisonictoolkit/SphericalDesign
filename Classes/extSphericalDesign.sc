@@ -85,17 +85,31 @@ Unversity of California at Berkeley
 
 		connections = Array.fill(numPnts, { Array.newClear(numPnts) });
 
+		// fill a table with all the vector angles between points
+		if (vecAngTable.isNil) {
+			vecAngTable = Array.fill(numPnts, { Array.newClear(numPnts) });
+			numPnts.do{ |i|
+				vecAngTable[i][i] = 0; // fill the diagonal
+				for (i+1.0, numPnts - 1, { |j|
+					var va = this.vec_angle(points[i], points[j]);
+					// can look up the value with either point index first
+					vecAngTable[i][j] = va;
+					vecAngTable[j][i] = va;
+				})
+			};
+		};
+
 		triplets = nil;
-		for(0.0, numPnts - 1, { |i|
-			for(i+1.0, numPnts - 1, { |j|
-				for(j+1.0, numPnts - 1, { |k|
+		for (0.0, numPnts - 1, { |i|
+			for (i+1.0, numPnts - 1, { |j|
+				for (j+1.0, numPnts - 1, { |k|
 					if (this.vol_p_side_lgth(i,j,k) > minSideLength, {
-						connections[i][j]=1;
-						connections[j][i]=1;
-						connections[i][k]=1;
-						connections[k][i]=1;
-						connections[j][k]=1;
-						connections[k][j]=1;
+						connections[i][j] = 1;
+						connections[j][i] = 1;
+						connections[i][k] = 1;
+						connections[k][i] = 1;
+						connections[j][k] = 1;
+						connections[k][j] = 1;
 						triplets = triplets.add([i,j,k]);
 					});
 				});
@@ -111,7 +125,7 @@ Unversity of California at Berkeley
 			for(i+1, numPnts - 1, { |j|
 				if (connections[i][j] == 1) {
 					dict = Dictionary();
-					dict[\d] = this.vec_angle(points[i],points[j]).abs;
+					dict[\d] = vecAngTable[i][j].abs;
 					dict[\i] = i;
 					dict[\j] = j;
 					distance_table[step] = dict;
@@ -136,9 +150,9 @@ Unversity of California at Berkeley
 			fst_ls = distance_table[i][\i];
 			sec_ls = distance_table[i][\j];
 
-			if(connections[fst_ls][sec_ls] == 1, {
+			if (connections[fst_ls][sec_ls] == 1, {
 				numPnts.do{ |j|
-					for(j+1.0, numPnts - 1, { |k|
+					for (j+1.0, numPnts - 1, { |k|
 						if (
 							(j != fst_ls) and: {
 								(k != sec_ls) and: {
@@ -181,10 +195,13 @@ Unversity of California at Berkeley
 	vec_angle { |v1, v2|
 		/* angle between two loudspeakers */
 		var inner;
-		inner = ((v1.x*v2.x) + (v1.y*v2.y) + (v1.z*v2.z)) /
-		(this.vec_length(v1) * this.vec_length(v2));
-		if(inner > 1.0, {inner = 1.0});
-		if (inner < -1.0, {inner = -1.0});
+		inner = (
+			(v1.x*v2.x) + (v1.y*v2.y) + (v1.z*v2.z)
+		) / (
+			this.vec_length(v1) * this.vec_length(v2)
+		);
+		if (inner > 1.0,  { inner = 1.0 });
+		if (inner < -1.0, { inner = -1.0 });
 		^abs(acos(inner));
 	}
 
@@ -215,45 +232,58 @@ Unversity of California at Berkeley
 		neg_v3.y= 0.0 - v3.y;
 		neg_v3.z= 0.0 - v3.z;
 
-		dist_ij = (this.vec_angle(points[i], points[j]));
-		dist_kl = (this.vec_angle(points[k], points[l]));
-		dist_iv3 = (this.vec_angle(points[i], v3));
-		dist_jv3 = (this.vec_angle(v3, points[j]));
-		dist_inv3 = (this.vec_angle(points[i], neg_v3));
-		dist_jnv3 = (this.vec_angle(neg_v3, points[j]));
-		dist_kv3 = (this.vec_angle(points[k], v3));
-		dist_lv3 = (this.vec_angle(v3, points[l]));
-		dist_knv3 = (this.vec_angle(points[k], neg_v3));
-		dist_lnv3 = (this.vec_angle(neg_v3, points[l]));
+		dist_ij   = vecAngTable[i][j];
+		dist_kl   = vecAngTable[k][l];
+		dist_iv3  = this.vec_angle(points[i], v3);
+		dist_jv3  = this.vec_angle(v3, points[j]);
+		dist_inv3 = this.vec_angle(points[i], neg_v3);
+		dist_jnv3 = this.vec_angle(neg_v3, points[j]);
+		dist_kv3  = this.vec_angle(points[k], v3);
+		dist_lv3  = this.vec_angle(v3, points[l]);
+		dist_knv3 = this.vec_angle(points[k], neg_v3);
+		dist_lnv3 = this.vec_angle(neg_v3, points[l]);
 
 		/* if one of loudspeakers is close to crossing point, don't do anything */
-		if( (abs(dist_iv3) <= 0.01)  || (abs(dist_jv3) <= 0.01) ||
-			(abs(dist_kv3) <= 0.01)  || (abs(dist_lv3) <= 0.01) ||
-			(abs(dist_inv3) <= 0.01) || (abs(dist_jnv3) <= 0.01) ||
-			(abs(dist_knv3) <= 0.01) || (abs(dist_lnv3) <= 0.01), {^false});
+		if (
+			(abs(dist_iv3) <= 0.01) or: {
+				(abs(dist_jv3) <= 0.01) or: {
+					(abs(dist_kv3) <= 0.01) or: {
+						(abs(dist_lv3) <= 0.01) or: {
+							(abs(dist_inv3) <= 0.01) or: {
+								(abs(dist_jnv3) <= 0.01) or: {
+									(abs(dist_knv3) <= 0.01) or: {
+										(abs(dist_lnv3) <= 0.01)
+			}}}}}}}
+		) {^false};
 
 		/* if crossing point is on line between both loudspeakers return 1 */
-		if( (
-			(abs(dist_ij - (dist_iv3 + dist_jv3)) <= 0.01 ) &&
-			(abs(dist_kl - (dist_kv3 + dist_lv3))  <= 0.01)
-		) || (
-			(abs(dist_ij - (dist_inv3 + dist_jnv3)) <= 0.01)  &&
-			(abs(dist_kl - (dist_knv3 + dist_lnv3)) <= 0.01 )
-		), { ^true }, { ^false });
-
+		if (
+			(
+				(abs(dist_ij - (dist_iv3 + dist_jv3)) <= 0.01 ) and: {
+					abs(dist_kl - (dist_kv3 + dist_lv3))  <= 0.01
+				}
+			) or: {
+				(abs(dist_ij - (dist_inv3 + dist_jnv3)) <= 0.01)  and: {
+					abs(dist_kl - (dist_knv3 + dist_lnv3)) <= 0.01
+				}
+			}
+		) { ^true } { ^false };
 	}
 
 	/* vector cross product */
 	unq_cross_prod { |v1, v2|
 		var length, result;
+
 		result = Cartesian.new;
 		result.x = (v1.y * v2.z ) - (v1.z * v2.y);
 		result.y = (v1.z * v2.x ) - (v1.x * v2.z);
 		result.z = (v1.x * v2.y ) - (v1.y * v2.x);
+
 		length = this.vec_length(result);
 		result.x = result.x / length;
 		result.y = result.y / length;
 		result.z = result.z / length;
+
 		^result;
 	}
 
@@ -264,14 +294,11 @@ Unversity of California at Berkeley
 		var volper, lgth;
 		var xprod;
 
-		xprod = this.unq_cross_prod(points[i], points[j]);
-		volper = abs(this.vec_prod(xprod, points[k]));
-		lgth = (
-			abs(this.vec_angle(points[i], points[j]))
-			+ abs(this.vec_angle(points[i], points[k]))
-			+ abs(this.vec_angle(points[j], points[k]))
-		);
-		if(lgth > 0.00001, { ^(volper / lgth) }, { ^0.0 });
+		xprod =  this.unq_cross_prod(points[i], points[j]);
+		volper = this.vec_prod(xprod, points[k]).abs;
+		lgth = vecAngTable[i][j].abs + vecAngTable[i][k].abs + vecAngTable[j][k].abs;
+
+		^if (lgth > 0.00001) { (volper / lgth) } { 0.0 };
 	}
 
 	any_ls_inside_triplet { |a, b, c|
@@ -289,9 +316,11 @@ Unversity of California at Berkeley
 		invmx = Array.newClear(9);
 
 		/* matrix inversion */
-		invdet = 1.0 / (  lp1.x * ((lp2.y * lp3.z) - (lp2.z * lp3.y))
+		invdet = 1.0 / (
+			lp1.x * ((lp2.y * lp3.z) - (lp2.z * lp3.y))
 			- (lp1.y * ((lp2.x * lp3.z) - (lp2.z * lp3.x)))
-			+ (lp1.z * ((lp2.x * lp3.y) - (lp2.y * lp3.x))));
+			+ (lp1.z * ((lp2.x * lp3.y) - (lp2.y * lp3.x)))
+		);
 
 		invmx[0] = ((lp2.y * lp3.z) - (lp2.z * lp3.y)) * invdet;
 		invmx[3] = ((lp1.y * lp3.z) - (lp1.z * lp3.y)) * invdet.neg;
@@ -304,18 +333,22 @@ Unversity of California at Berkeley
 		invmx[8] = ((lp1.x * lp2.y) - (lp1.y * lp2.x)) * invdet;
 
 		any_ls_inside = false;
-		for(0, this.numPoints - 1, {|i|
-			if((i != a) && (i != b) && (i != c), {
+		for (0, this.numPoints - 1, { |i|
+			if((i != a) and: {
+				(i != b) and: {
+					(i != c) }
+			}) {
 				this_inside = true;
-				for(0, 2, {|j|
+				for (0, 2, { |j|
 					tmp = points[i].x * invmx[0 + (j*3)];
 					tmp = points[i].y * invmx[1 + (j*3)] + tmp;
 					tmp = points[i].z * invmx[2 + (j*3)] + tmp;
-					if(tmp < -0.001, {this_inside = false;});
+					if (tmp < -0.001) { this_inside = false };
 				});
-				if(this_inside, {any_ls_inside = true});
-			});
+				if (this_inside) {any_ls_inside = true};
+			};
 		});
+
 		^any_ls_inside;
 	}
 }

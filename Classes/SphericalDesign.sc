@@ -41,11 +41,12 @@
 
 
 SphericalDesign {
-	var <points; // points are Cartesians
+	var <points;     // points are Cartesians
 	var initPoints;
 	var <design;
 	var <view;
-	var <triplets; // methods for calculating triplets found in extSphericalDesign
+	var <triplets;   // delaunay triangulation triplets, see extSphericalDesign
+	var vecAngTable; // used by calcTriplets, see extSphericalDesign
 
 	*new {
 		^super.new
@@ -78,6 +79,7 @@ SphericalDesign {
 
 	points_ { |cartesianArray|
 		points = cartesianArray;
+		vecAngTable = nil;
 		this.changed(\points, points); // TODO: avoid broadcasting points?
 	}
 
@@ -96,6 +98,7 @@ SphericalDesign {
 		})
 	}
 
+	// vector angles from all points to a given direction
 	vectorAngles { |theta = 0, phi = 0|
 		^points.collect{ |point| this.vec_angle(Spherical(1, theta, phi), point) }
 	}
