@@ -4,7 +4,9 @@
 	with some modification, from Scott Wilson's port
 	(VBAPSpeakerArray) of Ville Pukki's VBAP library in PureData.
 	The copied methods pertain to forming a triangulation of points
-	which forms a mesh grid suitable for use with VBAP.
+	which forms a mesh grid suitable for use with VBAP and used here
+    to visualizate a point mesh. A future implementation could
+    perform a convex hull operation if that's more efficient.
 	- M. McCrea, DXARTS, University of Washington, mtm5[at]uw.edu
 
 
@@ -63,16 +65,17 @@ Unversity of California at Berkeley
 
 			// rough graph of calc times
 			pntEnv = Env(
-				[ 0, 5,  9,  14, 22, 44,  80,  420 ],               // sec
-				[    50, 60, 70, 80, 100, 120, 180 ].differentiate, // numPoints
+				[0, 5,  8,  11, 18, 34,  68,  425],               // sec
+				[   50, 61, 70, 80, 100, 120, 180].differentiate, // numPoints
 				'lin'
 			);
 			sec = if (numPnts < 181) { pntEnv[numPnts] };
 
 			postf(
-				"Calculating point triangulation...\nThis could take roughly % %\n",
+				"Calculating point triangulation...\n"
+				"This could take roughly % %\n",
 				*if (sec.notNil) {
-					if (sec < 60) {
+					if (sec < 91) {
 						[sec, "sec"]
 					} {
 						[(sec / 60).round(0.01), "min"]
@@ -190,6 +193,8 @@ Unversity of California at Berkeley
 			);
 			test
 		});
+
+		this.changed(\triplets, true); // true: triplets have been set
 	}
 
 	vec_angle { |v1, v2|

@@ -67,7 +67,6 @@ PointView : View {
 		rotatePhase = tiltPhase = tumblePhase = 0;
 		rotateMode = \rtt;
 		randomVariance = 0.15;
-
 		connectionColor = Color.blue.alpha_(0.1);
 		indicesColor = Color.black;
 
@@ -97,28 +96,24 @@ PointView : View {
 		this.tumbleOscPeriod_(this.tumblePeriod);
 		tumbleOscWidth = tiltOscWidth = rotateOscWidth = initOscWidth;
 		this.rotateMode_(rotateMode);
-
-		// init rotation variables
 		this.rotateRate_(rotateRate);
 		this.tiltRate_(tiltRate);
 		this.tumbleRate_(tumbleRate);
 
-		this.initInteractions; // method currently empty
+		// this.initInteractions; // method currently empty
 
-		this.onResize_({ this.updateCanvasDims });
 		// initialize canvas
 		this.updateCanvasDims;
+		this.onResize_({ this.updateCanvasDims });
 
-		// init controller view
+		// init controls ui
 		rotationView = PointViewUI(this, Rect(5, 35, 405, 700));
 		this.addDependant(rotationView);
 		rotationView.onClose({ this.removeDependant(rotationView) });
-
 		this.makeShowView;
 		this.makePerspectiveView;
 
 		this.layItOut;
-
 	}
 
 	layItOut {
@@ -472,7 +467,7 @@ PointView : View {
 		minDim = min(bnds.width, bnds.height);
 	}
 
-	points_ { |cartesians|
+	points_ { |cartesians, resetConnections = true|
 		var sphericals, rhoScale;
 
 		points = cartesians;
@@ -480,7 +475,7 @@ PointView : View {
 		rhoScale = sphericals.collect(_.rho).maxItem.reciprocal;
 		pointsNorm = sphericals.collect({ |me| me.rho_(me.rho * rhoScale).asCartesian });
 
-		connections = [(0..points.size-1)];
+		if (resetConnections) { connections = [(0..points.size-1)] };
 		this.prUpdateColors;
 		this.refresh;
 	}
@@ -490,7 +485,7 @@ PointView : View {
 	// Sphericals, or
 	// [[theta, phi], [theta, phi] ...], (rho assumed to be 1) or
 	// [[theta, phi, rho], [theta, phi, rho] ...]
-	directions_ { |dirArray|
+	directions_ { |dirArray, resetConnections = true|
 		var first, sphericals;
 
 		first = dirArray[0];
@@ -511,7 +506,7 @@ PointView : View {
 			.throw
 		};
 
-		this.points_(sphericals.collect(_.asCartesian));
+		this.points_(sphericals.collect(_.asCartesian), resetConnections);
 	}
 
 
@@ -680,17 +675,22 @@ PointView : View {
 			// draw points and indices
 			strRect = "000000".bounds.asRect;
 			pnts_xf.do{ |pnt, i|
-				var pntSize, f;
+				var pntSize, f, fCol;
 
-				pntSize = if (renderDistanceSize) {
-					pnt_depths[i].linlin(-1.0,1.0, pointSize, pointSize * pointDistScale)
+				if (renderDistanceSize) {
+					pntSize = pnt_depths[i].linlin(-1.0,1.0, pointSize, pointSize * pointDistScale);
+					fCol = indicesColor;
 				} {
-					pointSize
+					pntSize = pointSize;
 				};
 
 				// draw index
 				if (showIndices) {
-					Pen.fillColor_(indicesColor);
+					Pen.fillColor_(
+						indicesColor.alpha_(
+							pnt_depths[i].linlin(-1.0,1.0, 1, 0.35)
+						)
+					);
 
 					f = Font.default.pointSize_(
 						pnt_depths[i].linlin(-1.0,1.0, 18, 10) // change font size with depth
@@ -1202,12 +1202,31 @@ PointView : View {
 	}
 
 	update { |who, what ... args|
-		switch (what,
-			\points, {
-				this.points_(args[0])
+		if (who.isKindOf(SphericalDesign)) {
+			switch (what,
+				\points, {
+					if (who.triplets == connections) {
+						// triplets still match connections, don't reset them
+						this.points_(who.points, false) // don't reset connections, assume
+					} {
+						// connections are no longer valid with the new points
+						this.points_(who.points, true) // reset connections
+					}
+				},
+				// when triplets change, it's assumed that connections are the triplets
+				\triplets, {
+					if (args[0]) {
+						// new triplets:
+						this.connections_(who.triplets)
+					} {
+						// triplets removed and not recalculated
+						connections = nil;
+						this.showConnections_(false);
+					}
 
-			}
-		)
+				}
+			)
+		};
 	}
 
 }

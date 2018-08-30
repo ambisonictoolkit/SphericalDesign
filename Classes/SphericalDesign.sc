@@ -61,26 +61,52 @@ SphericalDesign {
 		design = TDesign(nPnts, t, 3);
 	}
 
-	rotate { |angle| this.prUpdateDesign(\rotate, angle) }
-	tilt   { |angle| this.prUpdateDesign(\tilt, angle) }
-	tumble { |angle| this.prUpdateDesign(\tumble, angle) }
+	// transform the design
 
-	// modify the design by performing method on all points
-	prUpdateDesign { |method ...args|
+	// rotations - angle in radians
+	rotate { |angle| this.performOnDesign(\rotate, angle) }
+	tilt   { |angle| this.performOnDesign(\tilt, angle) }
+	tumble { |angle| this.performOnDesign(\tumble, angle) }
+
+	// mirror
+	mirrorX { |recalcTriplets = true| // reflecting across the YZ plane
+		this.prMirror(\mirrorX, recalcTriplets) }
+	mirrorY { |recalcTriplets = true| // reflecting across the XZ plane
+		this.prMirror(\mirrorY, recalcTriplets) }
+	mirrorZ { |recalcTriplets = true| // reflecting across the XY plane
+		this.prMirror(\mirrorZ, recalcTriplets) }
+	mirrorO { |recalcTriplets = true| // reflecting through the origin
+		this.prMirror(\mirrorO, recalcTriplets) }
+
+	prMirror { |method, recalcTriplets|
+		this.performOnDesign(method);
+		if (recalcTriplets and: { triplets.notNil }) { this.calcTriplets }
+	}
+
+	// modify the design by performing method on all points (Cartesians)
+	// leaves triplets unchanged
+	performOnDesign { |method ...args|
 		this.points_(points.collect(_.perform(method, *args)));
 	}
 
 	numPoints { ^points.size }
-
 	size { ^points.size }
 
 	// reset points to position when first created, e.g. after applying rotation
-	reset { this.points_(initPoints) }
+	reset {
+		this.points_(initPoints);
+		this.resetTriplets;
+	}
 
 	points_ { |cartesianArray|
 		points = cartesianArray;
-		vecAngTable = nil;
 		this.changed(\points, points); // TODO: avoid broadcasting points?
+	}
+
+	resetTriplets {
+		triplets = nil;
+		vecAngTable = nil;
+		this.changed(\triplets, false); // false: triplets have not been set
 	}
 
 	// azInArray: 2D array containing [azimuth, inclination] (theta, phi) pairs
@@ -160,7 +186,7 @@ SphericalDesign {
 	visualize { |parent, bounds, showConnections = true|
 		if (showConnections and: { triplets.isNil }) {
 			"\nTriangulating points to display connections...".postln;
-			try { this.calcTriplets } { "Could not calculate triplets".warn };
+			try { this.calcTriplets } { triplets = nil; "Could not calculate triplets".warn };
 			"...done".postln;
 		};
 
@@ -178,28 +204,41 @@ SphericalDesign {
 
 
 TDesign : SphericalDesign {
-	var <t, nPnts, dim;
+	var <t;
 
-	*new { |nPnts, t, dim = 3|
-		^super.new.init(nPnts, t, dim);
+	*new { |numPoints, t, dim = 3|
+		^super.new.init(numPoints, t, dim);
 	}
 
-	init { |aNp, aT, aDim|
-		var path, data;
+	init { |argNp, argT, argDim|
+		var path, data, matches;
 
-		nPnts = aNp;
-		t = aT;
-		dim = aDim;
-
-		TDesignLib.lib ?? {TDesignLib.initLib};
-
-		// update instance vars in case not all are specified by *new
+		// confirm one and only one match exists for this numPoints and t
 		// errors out if no match or multiple matches found
-		#nPnts, t, dim = this.prFindDesignMatch;
+		matches = TDesignLib.getDesign(argNp, argT, argDim);
+		case
+		{ matches.size == 0 } {
+			Error(
+				format("[TDesign:-init] No t-designs found in TDesignLib.lib matching: "
+				"numPoints %, t %, dim %", argNp, argT, argDim)
+			).throw;
+		}
+		{ matches.size > 1 } {
+			var e;
+			e = Error(
+				"[TDesign:-init] Multiple t-designs found, specify both 'numPoints' "
+				"and 't' to return one result. 't' of available designs:"
+			);
+			e.errorString.postln;
+			matches.do({ |design| postf("t: %\n", design[\t]) });
+			e.throw;
+		};
 
-		path = TDesignLib.path +/+ "des.%.%.%.txt".format(dim, nPnts, t);
+		t = matches[0][\t];
+
+		path = TDesignLib.path +/+ "des.%.%.%.txt".format(argDim, argNp, t);
 		if (File.exists(path).not) {
-			"No t-design file found at %".format(path).throw
+			format("No t-design file found at %", path).throw
 		};
 
 		data = FileReader.read(path);
@@ -209,34 +248,6 @@ TDesign : SphericalDesign {
 		};
 
 		this.prSaveInitState;
-	}
-
-	prFindDesignMatch {
-		var matches, m;
-
-		matches = TDesignLib.getDesign(nPnts, t, dim);
-
-		case
-		{ matches.size == 0 } {
-			Error(
-				format("[TDesign:-init] No t-designs found in TDesignLib.lib matching: "
-				"nPnts %, t %, dim %", nPnts, t, dim)
-			).throw;
-		}
-		{ matches.size > 1 } {
-			var e;
-			e = Error(
-				"[TDesign:-init] Multiple t-designs found, specify both 'nPnts' "
-				"and 't' to return one result. 't' of available designs:"
-			);
-			e.errorString.postln;
-			matches.do({ |design| postf("t: %\n", design[\t]) });
-			e.throw;
-		}
-		{ m = matches[0] };
-
-		// unpack the dictionary to set instance vars on return
-		^[m[\numPoints], m[\t], m[\dim]]
 	}
 }
 
@@ -355,13 +366,13 @@ TDesignLib {
 	}
 
 	// return an Array of designs matching the criteria
-	*getDesign { |nPnts, t, dim = 3|
+	*getDesign { |numPoints, t, dim = 3|
 
 		lib ?? {this.initLib};
 
 		^lib.select{ |item|
 			var t1, t2, t3;
-			t1 = (nPnts.isNil or: { item[\numPoints] == nPnts });
+			t1 = (numPoints.isNil or: { item[\numPoints] == numPoints });
 			t2 = t.isNil or: { item[\t] == t };
 			t3 = item[\dim] == dim;
 			t1 and: t2 and: t3;
