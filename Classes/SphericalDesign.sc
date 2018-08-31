@@ -43,7 +43,6 @@
 SphericalDesign {
 	var <points;     // points are Cartesians
 	var initPoints;
-	var <design;
 	var <view;
 	var <triplets;   // delaunay triangulation triplets, see extSphericalDesign
 	var vecAngTable; // used by calcTriplets, see extSphericalDesign
@@ -53,12 +52,8 @@ SphericalDesign {
 	}
 
 	// support for creating a TDesign via SphDesign
-	*newT { |nPnts, t|
-		^super.new.initTDesign(nPnts, t)
-	}
-
-	initTDesign { |nPnts, t|
-		design = TDesign(nPnts, t, 3);
+	*newT { |numPoints, t|
+		^TDesign(numPoints, t, 3);
 	}
 
 	// transform the design
@@ -103,16 +98,10 @@ SphericalDesign {
 		this.changed(\points, points); // TODO: avoid broadcasting points?
 	}
 
-	resetTriplets {
-		triplets = nil;
-		vecAngTable = nil;
-		this.changed(\triplets, false); // false: triplets have not been set
-	}
-
-	// azInArray: 2D array containing [azimuth, inclination] (theta, phi) pairs
-	directions_ { |azInArray|
+	// azElArray: 2D array containing [azimuth, inclination] (theta, phi) pairs
+	directions_ { |azElArray|
 		this.points_(
-			azInArray.collect{ |dirs| Spherical(1, *dirs).asCartesian}
+			azElArray.collect{ |dirs| Spherical(1, *dirs).asCartesian}
 		);
 	}
 
@@ -199,6 +188,12 @@ SphericalDesign {
 		};
 	}
 
+	resetTriplets {
+		triplets = nil;
+		vecAngTable = nil;
+		this.changed(\triplets, false); // false: triplets have not been set
+	}
+
 	prSaveInitState { initPoints = points }
 }
 
@@ -256,8 +251,11 @@ TDesign : SphericalDesign {
 TDesignLib {
 	classvar <lib;   // Array of designs, stored as Dictionaries
 	classvar <>path;
-	// TODO: resolve default path
-	classvar <defaultPath = "~/Library/Application Support/ATK/t-designs/";
+	classvar <defaultPath;
+
+	*initClass {
+		defaultPath = PathName(thisMethod.filenameSymbol.asString).parentPath.asPathName.parentPath.absolutePath +/+ "Designs/t-designs/sloane/";
+	}
 
 	*initLib {
 		var pn, dim, nPnts, t;
@@ -277,7 +275,7 @@ TDesignLib {
 				).throw;
 			}
 		} {
-			Error("[TDesignLib:*initLib] No file exists at path %".format(this.path)).throw;
+			Error("[TDesignLib:*initLib] No folder exists at path %".format(this.path)).throw;
 		};
 
 		lib = List();
@@ -296,7 +294,9 @@ TDesignLib {
 	// Download all of the t-designs.
 	// NOTE: uses curl, may not be suitable for Windows
 	*downloadAll { |savePath, makeDir = false|
-		var p = savePath ?? {defaultPath};
+		var p;
+
+		p = savePath ?? {defaultPath};
 
 		if (File.exists(p).not) {
 			if (makeDir) {
