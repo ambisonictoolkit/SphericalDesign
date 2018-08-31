@@ -45,7 +45,7 @@ PointView : View {
 	// interaction
 	var mouseDownPnt, mouseUpPnt, mouseMovePnt;
 
-	*new { |parent, bounds = (Rect(0,0, 600, 500))|
+	*new { |parent, bounds = (Rect(0,0, 1000, 715))|
 		^super.new(parent, bounds).init;
 	}
 
