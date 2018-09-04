@@ -9,7 +9,7 @@
 	Public License as published by the Free Software Foundation, either version 3
 	of the License, or (at your option) any later version.
 
-	The Spherical Design library is distributed in
+	The SphericalDesign library is distributed in
 	the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
 	implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See
 	the GNU General Public License for more details.
@@ -250,7 +250,7 @@ TDesign : SphericalDesign {
 // http://neilsloane.com/sphdesigns/
 TDesignLib {
 	classvar <lib;   // Array of designs, stored as Dictionaries
-	classvar <>path;
+	classvar >path;
 	classvar <defaultPath;
 
 	*initClass {
@@ -260,7 +260,7 @@ TDesignLib {
 	*initLib {
 		var pn, dim, nPnts, t;
 
-		this.path ?? {this.path = defaultPath.standardizePath};
+		path ?? { path = defaultPath.standardizePath };
 
 		if (File.exists(path)) {
 			pn = PathName(path);
@@ -362,7 +362,7 @@ TDesignLib {
 			};
 		};
 
-		res.do(_.postln);
+		res.sortBy(\numPoints).do({ |d| postf("numPoints -> %, t -> %\n", d[\numPoints], d[\t]) });
 	}
 
 	// return an Array of designs matching the criteria
@@ -379,4 +379,5 @@ TDesignLib {
 		}
 	}
 
+	*path { ^path ?? defaultPath }
 }
