@@ -6,21 +6,26 @@ related:: Classes/TDesign, Classes/Cartesian, Classes/Spherical
 DESCRIPTION::
 
 definitionlist::
-##From Wikipedia:
-|| A spherical design, part of combinatorial design theory in mathematics, is a
-finite set of N points on the emphasis::d::-dimensional unit emphasis::d::-sphere
-Sd such that the average value of any polynomial emphasis::f:: of degree
-emphasis::t:: or less on the set equals the average value of emphasis::f:: on the
-whole sphere (that is, the integral of emphasis::f:: over Sd divided by the area
-or measure of Sd). Such a set is often called a spherical emphasis::t::-design
-to indicate the value of emphasis::t::, which is a fundamental parameter.
+## Spherical designs
+||Let emphasis::X:: be a finite subset of emphasis::S^(n−1)::. Spherical codes
+and spherical designs are nothing but finite subsets of emphasis::S^(n−1)::.
+Roughly speaking, the code theoretical viewpoint is to try to find emphasis::X::,
+whose points are scattered on emphasis::S^(n−1):: as far as possible, i.e. the
+minimum distance of emphasis::X:: is as large as possible for a given size of
+emphasis::X::. ... On the other hand, the design theoretical viewpoint is to try
+to find emphasis::X:: which globally approximates the sphere emphasis::S^(n−1)::
+very well. footnote::Bannai, E., Bannai, E. A survey on spherical designs and
+algebraic combinatorics on spheres. European Journal of Combinatorics,
+Volume 30, Issue 6, August 2009, Pages 1392-1425.
+::
 ::
 
 This class does not strictly enforce the definition of a spherical design, in
 fact it is just a collection of points (link::Classes/Cartesian:: objects) which
 you can set arbitrarily. The expectation however is that you'll be importing
 designs that are provided, such as those emphasis::t::-designs available through
-the subclass link::Classes/TDesign::.
+the subclass link::Classes/TDesign::, or assigning your own points to be
+regarded as a spherical design.
 
 
 NOTE::

@@ -1,0 +1,60 @@
+TITLE:: TDesignLib
+summary:: A library to load and search t-designs in support the TDesign class.
+categories:: Math
+related:: Classes/SphericalDesign, Classes/TDesign
+
+DESCRIPTION::
+ A library to support the link::Classes/TDesign:: class which loads emphasis::t::
+ -designs from the quark's library, which can then be introspected.
+
+definitionlist::
+##The T-Designs found here are from the work of:
+||McLaren's Improved Snub Cube and Other New Spherical Designs in Three
+Dimensions, R. H. Hardin and N. J. A. Sloane, Discrete and Computational
+Geometry, 15 (1996), pp. 429-441.
+##and are downloaded directly from their site:
+||http://neilsloane.com/sphdesigns/
+::
+
+CLASSMETHODS::
+
+METHOD:: getDesign
+Return an link::Classes/Array:: of designs matching the criteria.
+
+ARGUMENT:: numPoints
+(describe argument here)
+
+ARGUMENT:: t
+Fundamental parameter emphasis::t::. Can be code::nil::, but the returned
+link::Classes/Array:: will contain multiple matches if the library contains more
+than one design matching code::numPoints::.
+
+ARGUMENT:: dim
+Currently all designs are dimension 3.
+
+METHOD:: availableDesigns
+Post a list of designs available in the library.
+
+METHOD:: lib
+Return the library: a link::Classes/List:: of link::Classes/Dictionary:: objects
+each with key/value pairs of the code::\numPoints::, code::\t::, and code::\dim::
+ of the design.
+
+METHOD:: path
+Return the path which holds the emphasis::t::-design files. Defaults to
+link::#-defaultPath:: if not set.
+
+METHOD:: defaultPath
+Return the default path which holds the emphasis::t::-design files.
+
+METHOD:: initLib
+Initialize the library (load from disk). Most other methods call this internally
+so you likely won't need to do this directly.
+
+METHOD:: downloadAll
+Download all of the emphasis::t::-designs and save them to code::savePath::,
+creating the directory as needed if code::makeDir:: is code::true::.
+
+NOTE:: The emphasis::t::-design library is included in this quark, so a normal
+installation of this quark shouldn't require use of this method.
+::
