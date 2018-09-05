@@ -151,9 +151,7 @@ PointViewUI : View {
 			oscChk.valueAction_(false);
 			perNb.valueAction_(30);         // default osc/cycle period
 			oscWidthDegNb.valueAction_(8);  // default osc width
-			pv.rotate_(-45.degrad).tilt_(0).tumble_(0);
-			pv.allOsc_(false);
-			pv.allCyc_(false);
+			pv.reset;
 		})
 		.states_([["Reset"]])
 		;
@@ -461,7 +459,7 @@ PointViewUI : View {
 		varyMotionView = View().layout_(
 			VLayout(
 				HLayout(
-					StaticText().string_("Vary\nAxes")
+					StaticText().string_("Vary\nMotion")
 					.align_(\center).fixedWidth_(55).font_(Font.default.bold_(true)),
 					VLayout(
 						nil,

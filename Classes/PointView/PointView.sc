@@ -38,12 +38,12 @@ PointView : View {
 	var <rotateMode;       // \rtt or \ypr
 	var <randomizedAxes;   // dictionary of booleans for randomize state of each axis
 	var <>randomVariance;  // normalized value to apply to movement speed if randomized
+	var extrinsicRotation = false; // flag if mouse interaction requires additional extrinsic rotation
+	var exRot = 0, exTum = 0, prevExRot = 0, prevExTum = 0;
+	var rotPxStep = 1;
 
 	// views
 	var <userView, <rotationView, <showView, <perspectiveView;
-
-	// interaction
-	var mouseDownPnt, mouseUpPnt, mouseMovePnt;
 
 	*new { |parent, bounds = (Rect(0,0, 1000, 715))|
 		^super.new(parent, bounds).init;
@@ -100,7 +100,7 @@ PointView : View {
 		this.tiltRate_(tiltRate);
 		this.tumbleRate_(tumbleRate);
 
-		// this.initInteractions; // method currently empty
+		this.initInteractions; // method currently empty
 
 		// initialize canvas
 		this.updateCanvasDims;
@@ -465,6 +465,7 @@ PointView : View {
 		bnds = userView.bounds;
 		cen  = bnds.center;
 		minDim = min(bnds.width, bnds.height);
+		rotPxStep = 2pi / bnds.width;
 	}
 
 	points_ { |cartesians, resetConnections = true|
@@ -521,21 +522,28 @@ PointView : View {
 			scale = minDim.half;
 
 			rotPnts = { |carts|
-				switch (rotateMode,
+				var rotated;
+				rotated = switch (rotateMode,
 					\rtt, {
 						carts.collect{ |pnt|
 							pnt.rotate(rotate).tilt(tilt).tumble(tumble)
-							.rotate(0.5pi).tilt(0.5pi) // orient so view matches ambisonics
 						}
 					},
 					\ypr, {
 						carts.collect{ |pnt|
-							pnt
-							.tilt(tilt).tumble(tumble).rotate(rotate)
-							.rotate(0.5pi).tilt(0.5pi) // orient so view matches ambisonics
+							pnt.tilt(tilt).tumble(tumble).rotate(rotate)
 						}
 					}
-				)
+				);
+
+				// perform additional rotation from mouse
+				// interaction after model rotation
+				if (extrinsicRotation and: { ortho.not }) {
+					rotated = rotated.collect{ |pnt| pnt.rotate(exRot).tumble(exTum) }
+				};
+
+				// orient so view matches ambisonics and return
+				rotated.collect{ |pnt| pnt.rotate(0.5pi).tilt(0.5pi) };
 			};
 
 			// xformed points from 3D -> perspective -> 2D
@@ -585,12 +593,14 @@ PointView : View {
 					) % 2pi;
 					rotate = sin(rotatePhase) * 0.5 * rotateOscWidth + baseRotation;
 				};
+
 				if (oscTilt) {
 					tiltPhase = (
 						tiltPhase + (tiltOscPhsInc * tiltDir)
 					) % 2pi;
 					tilt = sin(tiltPhase) * 0.5 * tiltOscWidth + baseTilt;
 				};
+
 				if (oscTumble) {
 					tumblePhase = (
 						tumblePhase + (tumbleOscPhsInc * tumbleDir)
@@ -599,12 +609,11 @@ PointView : View {
 				};
 			};
 
-
 			// rotate into ambisonics coords and rotate for user
 			pnts = rotPnts.(pointsNorm);
 			axPnts = rotPnts.(axisPnts * axisScale);
 
-			// hold on to these point depths (z) for use when drawing with perspective
+			// hold on to these point depths (z in screen coords) for use when drawing with perspective
 			pnt_depths = pnts.collect(_.z);
 			axPnts_depths = axPnts.collect(_.z);
 
@@ -1163,42 +1172,45 @@ PointView : View {
 		this.changed(\units, radiansOrDegrees)
 	}
 
-
-	// TODO:
 	initInteractions {
-		// userView.mouseMoveAction_({
-		// 	|v,x,y,modifiers|
-		// 	mouseMovePnt = x@y;
-		// 	// mouseMoveAction.(v,x,y,modifiers)
-		// });
-		//
-		// userView.mouseDownAction_({
-		// 	|v,x,y, modifiers, buttonNumber, clickCount|
-		// 	mouseDownPnt = x@y;
-		// 	// mouseDownAction.(v,x,y, modifiers, buttonNumber, clickCount)
-		// });
-		//
-		// userView.mouseUpAction_({
-		// 	|v,x,y, modifiers|
-		// 	mouseUpPnt = x@y;
-		// 	// mouseUpAction.(v,x,y,modifiers)
-		// });
-		//
-		// userView.mouseWheelAction_({
-		// 	|v, x, y, modifiers, xDelta, yDelta|
-		// 	// this.stepByScroll(v, x, y, modifiers, xDelta, yDelta);
-		// });
-		//
-		// // NOTE: if overwriting this function, include a call to
-		// // this.stepByArrowKey(key) to retain key inc/decrement capability
-		// userView.keyDownAction_ ({
-		// 	|view, char, modifiers, unicode, keycode, key|
-		// 	// this.stepByArrowKey(key);
-		// });
+		var mouseDownPnt, mouseUpPnt, mouseMovePnt;
+
+		userView.mouseMoveAction_({ |v,x,y,modifiers|
+			var deltaX, deltaY;
+
+			extrinsicRotation = true;
+			deltaX = x - mouseDownPnt.x;
+			deltaY = y - mouseDownPnt.y;
+			exRot = prevExRot + (deltaX * rotPxStep);
+			exTum = prevExTum + (deltaY * rotPxStep);
+			mouseMovePnt = x@y;
+
+			this.refresh;
+		});
+
+		userView.mouseDownAction_({ |v,x,y, modifiers, buttonNumber, clickCount|
+			mouseDownPnt = x@y;
+			mouseMovePnt = x@y;
+		});
+
+		userView.mouseUpAction_({ |v,x,y, modifiers|
+			mouseUpPnt = x@y;
+			prevExRot = exRot;
+			prevExTum = exTum;
+		});
 	}
 
 	refresh {
 		userView.animate.not.if{ userView.refresh };
+	}
+
+	// reset rotations
+	reset {
+		extrinsicRotation = false; // flag if mouse interaction requires additional extrinsic rotation
+		exRot = exTum = prevExRot = prevExTum = 0;
+		this.rotate_(-45.degrad).tilt_(0).tumble_(0);
+		this.allOsc_(false).allCyc_(false);
+		this.refresh;
 	}
 
 	update { |who, what ... args|
