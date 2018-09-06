@@ -21,6 +21,7 @@ PointView : View {
 	var renderDistanceSize = true;
 	var prevColors, highlighted = false;
 	var connectionColor, indicesColor;
+	var <groupColors, <colorGroups, defaultGroupColor;
 
 	// movement
 	var <baseRotation, <baseTilt, <baseTumble; // radians, rotations before any movement offsets are applied
@@ -69,6 +70,8 @@ PointView : View {
 		randomVariance = 0.15;
 		connectionColor = Color.blue.alpha_(0.1);
 		indicesColor = Color.black;
+		groupColors = Color.red;
+		defaultGroupColor = Color.gray.alpha_(0.3);
 
 		userView = UserView(this, this.bounds.origin_(0@0))
 		.resize_(5)
@@ -96,9 +99,9 @@ PointView : View {
 		this.tumbleOscPeriod_(this.tumblePeriod);
 		tumbleOscWidth = tiltOscWidth = rotateOscWidth = initOscWidth;
 		this.rotateMode_(rotateMode);
-		this.rotateRate_(rotateRate);
-		this.tiltRate_(tiltRate);
-		this.tumbleRate_(tumbleRate);
+		this.rotateCycRate_(rotateRate);
+		this.tiltCycRate_(tiltRate);
+		this.tumbleCycRate_(tumbleRate);
 
 		this.initInteractions; // method currently empty
 
@@ -879,30 +882,30 @@ PointView : View {
 		this.rotateDir_(dir).tiltDir_(dir).tumbleDir_(dir);
 	}
 
-	rotateRate_ { |hz|
+	rotateCycRate_ { |hz|
 		rotateRate = hz;
 		rotateStep = (rotateRate / frameRate) * 2pi * rotateDir;
 		this.changed(\rate, \rotate, hz);
 	}
-	tiltRate_ { |hz|
+	tiltCycRate_ { |hz|
 		tiltRate = hz;
 		tiltStep = (tiltRate / frameRate) * 2pi * tiltDir;
 		this.changed(\rate, \tilt, hz);
 	}
-	tumbleRate_ { |hz|
+	tumbleCycRate_ { |hz|
 		tumbleRate = hz;
 		tumbleStep = (tumbleRate / frameRate) * 2pi * tumbleDir;
 		this.changed(\rate, \tumble, hz);
 	}
-	allRate_ { |hz|
-		this.rotateRate_(hz).tiltRate_(hz).tumbleRate_(hz);
+	allCycRate_ { |hz|
+		this.rotateCycRate_(hz).tiltCycRate_(hz).tumbleCycRate_(hz);
 	}
 
-	rotatePeriod_ { |seconds| this.rotateRate_(seconds.reciprocal) }
-	tiltPeriod_   { |seconds| this.tiltRate_(seconds.reciprocal) }
-	tumblePeriod_ { |seconds| this.tumbleRate_(seconds.reciprocal) }
-	allPeriod_    { |seconds|
-		this.rotateRate_(seconds).tiltRate_(seconds).tumbleRate_(seconds)
+	rotateCycPeriod_ { |seconds| this.rotateCycRate_(seconds.reciprocal) }
+	tiltCycPeriod_   { |seconds| this.tiltCycRate_(seconds.reciprocal) }
+	tumbleCycPeriod_ { |seconds| this.tumbleCycRate_(seconds.reciprocal) }
+	allCycPeriod_    { |seconds|
+		this.rotateCycRate_(seconds).tiltCycRate_(seconds).tumbleCycRate_(seconds)
 	}
 
 	rotatePeriod { ^rotateRate.reciprocal }
@@ -1076,7 +1079,7 @@ PointView : View {
 
 	// arrayOfColors can be a Color, Array of Colors.
 	// If (arrayOfColors.size != points.size), points will wrap through the
-	// color array, or be grouped into each color if colorGroups_ has been set
+	// color array
 	pointColors_ { |arrayOfColors|
 		if (arrayOfColors.isKindOf(Color)) {
 			arrayOfColors = [arrayOfColors];
@@ -1095,7 +1098,7 @@ PointView : View {
 		colsByHue = false;
 	}
 
-	hueRange_ { |hueLow = 0, hueHigh = 0.999, sat = 0.9, val = 1, alpha = 0.8, scramble = false|
+	pointHueRange_ { |hueLow = 0, hueHigh = 0.999, sat = 0.9, val = 1, alpha = 0.8, scramble = false|
 		var size = points.size;
 
 		prPntDrawCols = size.collect{ |i|
@@ -1109,24 +1112,59 @@ PointView : View {
 			huesScrambled = scramble;
 		};
 		colsByHue = true;
+		this.refresh;
+	}
+
+	groupColors_ { |arrayOfColors, defaultColor = (Color.gray.alpha_(0.3))|
+
+		groupColors = arrayOfColors.isKindOf(Color).if({ [arrayOfColors] }, { arrayOfColors.flat });
+		defaultGroupColor = defaultColor;
+
+		// initialize colorGroups if not already
+		colorGroups ?? {
+			var npnts, ngrps, cnt = 0;
+
+			npnts = this.points.size;
+			ngrps = arrayOfColors.size;
+
+			colorGroups = Array.fill(ngrps, { Array.new } );
+
+			// form color groups of the correct rank
+			npnts.do{ |i|
+				colorGroups[i % ngrps] = colorGroups[i % ngrps].add(i);
+			};
+
+			// reset indices so they're grouped in ascending order
+			colorGroups.do{ |arr|
+				arr.do{ |elem, i|
+					arr[i] = cnt;
+					cnt = cnt + 1;
+				}
+			};
+
+			this.colorGroups_(colorGroups);
+		}
 	}
 
 	// Set groups of point indices which belong to each color in
 	// pointColors array.
 	// defaultColor is a Color for points not included in arraysOfIndices
-	colorGroups_ { |arraysOfIndices, defaultColor = (Color.black)|
+	colorGroups_ { |arraysOfIndices|
 
-		prPntDrawCols = points.size.collect{defaultColor};
+		prPntDrawCols = points.size.collect{ defaultGroupColor };
 
 		if (arraysOfIndices.rank == 1) {
 			arraysOfIndices = [arraysOfIndices];
 		};
 
-		arraysOfIndices.do{ |group, grpIdx|
+		colorGroups = arraysOfIndices;
+
+		colorGroups.do{ |group, grpIdx|
 			group.do{ |pntIdx|
-				prPntDrawCols[pntIdx] = pointColors.wrapAt(grpIdx)
+				prPntDrawCols[pntIdx] = groupColors.wrapAt(grpIdx)
 			}
 		};
+
 		colsByHue = false;
 		this.refresh;
 	}
@@ -1160,7 +1198,7 @@ PointView : View {
 			sat = prPntDrawCols.first.sat;
 			val = prPntDrawCols.first.val;
 			alpha = prPntDrawCols.first.alpha;
-			this.hueRange_(hues.minItem, hues.maxItem, sat, val, alpha, huesScrambled);
+			this.pointHueRange_(hues.minItem, hues.maxItem, sat, val, alpha, huesScrambled);
 		};
 
 		prPntDrawCols ?? {

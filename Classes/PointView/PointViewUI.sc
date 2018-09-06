@@ -156,11 +156,11 @@ PointViewUI : View {
 		.states_([["Reset"]])
 		;
 
-		// cyclic motion
+		// cyclic/osc motion
 		perNb = NumberBox()
 		.action_({ |nb|
 			[
-				\rotatePeriod_, \tiltPeriod_, \tumblePeriod_,
+				\rotateCycPeriod_, \tiltCycPeriod_, \tumbleCycPeriod_,
 				\rotateOscPeriod_, \tiltOscPeriod_, \tumbleOscPeriod_
 			].do({ |meth|
 				pv.perform(meth, nb.value);
@@ -177,7 +177,7 @@ PointViewUI : View {
 		.action_({ |sl|
 			var val;
 			[
-				\rotatePeriod_, \tiltPeriod_, \tumblePeriod_,
+				\rotateCycPeriod_, \tiltCycPeriod_, \tumbleCycPeriod_,
 				\rotateOscPeriod_, \tiltOscPeriod_, \tumbleOscPeriod_
 			].do({ |meth|
 				val = sl.value.lincurve(0, 1, 0.5, 70, 4);
