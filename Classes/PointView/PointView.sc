@@ -1039,15 +1039,17 @@ PointView : View {
 
 	// draw lines between these indices of points
 	// e.g. [[1,3],[0,5],[2,4]]
-	connections_ { |arraysOfIndices|
+	connections_ { |arraysOfIndices, showConnections = true|
 		if (arraysOfIndices.rank != 2) {
 			"[PointView:-connections_] arraysOfIndices argument "
 			"is not an array with rank == 2.".throw
 		};
 
 		connections = arraysOfIndices;
-		showConnections = true;
-		this.refresh;
+		if (showConnections) {
+			showConnections = true;
+			this.refresh;
+		};
 	}
 
 	axisColors_ { |colorArray|

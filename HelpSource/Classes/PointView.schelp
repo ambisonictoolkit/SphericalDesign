@@ -1,0 +1,596 @@
+TITLE:: PointView
+summary:: An interactive view displaying a collection of points in 3D space.
+categories:: GUI
+related:: Classes/Cartesian, Classes/SphericalDesign
+
+DESCRIPTION::
+An interactive view displaying a collection of points in 3D space. Points are
+link::Classes/Cartesian:: points (optionally specified as directional pairs of
+code::[azimuth, elevation]::) rendered with adjustable 3D perspective or orthogonal
+projection. Points can be connected with lines (link::#-connections_::),
+grouped by colors (link::#-colorGroups_::).
+
+The view and rotation controls are most conveniently changed through the UI
+built into the view, though these methods and more are avaible for more elaborate
+display of the points.
+
+Because the class in intended for use as a GUI, only those methods which are
+essential or useful beyond the UI controls are documented here.
+
+
+CLASSMETHODS::
+
+METHOD:: new
+Create a new link::Classes/PointView::.
+
+ARGUMENT:: parent
+An optional parent link::Classes/View:: in which to embed the
+link::Classes/PointView::.
+
+ARGUMENT:: bounds
+An optional link::Classes/Rect:: describing the bounds of the view.
+
+
+
+INSTANCEMETHODS::
+
+METHOD:: points
+Set the link::Classes/Array:: of link::Classes/Cartesian:: points to display.
+If code::resetConnections:: is code::false::, any previously set
+link::#-connections:: will remain, otherwise the default connections will be set
+to sequential indices code::[[0, 1, ... numPoints-1]]::.
+
+METHOD:: directions
+Set the directions of points to display. code::dirArray:: can be an
+link::Classes/Array:: of:
+LIST::
+##link::Classes/Array::s in the form of
+code::[[azimuth, inclination], [[azimuth, inclination]], ...]:: in radians,
+where rho is assumed to be 1. i.e. points on a unit circle.
+##link::Classes/Array::s in the form of
+code::[[azimuth, inclination, rho], [[azimuth, inclination, rho]], ...]:: in
+radians.
+##link::Classes/Spherical:: objects.
+::
+If code::resetConnections:: is code::false::, any previously set
+link::#-connections:: will remain, otherwise the default connections will be set
+to sequential indices code::[[0, 1, ... numPoints-1]]::. Directions are
+converted to link::Classes/Cartesian:: points internally.
+
+METHOD:: connections
+Set an link::Classes/Array:: of link::Classes/Array::s, each listing the indices of
+points which should be connected by lines in the display. If
+code::showConnections:: is code::true::, the connecting lines will immediately
+be shown. Connections can be toggled on and off with link::#-showConnections::.
+Default connections are set to sequential indices
+code::[[0, 1, ... numPoints-1]]::.
+
+METHOD:: rotateMode
+Set the order of rotations when applying compound rotations to the points.
+code::'rtt':: for Rotate-Tilt-Tumble, code::'ypr':: Yaw-Pitch-Roll.
+
+
+
+
+SUBSECTION::Movement: rotation
+
+METHOD:: rotate
+METHOD:: tilt
+METHOD:: tumble
+The rotation of the view, on each axis, in radians. Default positive directions
+are:
+list::
+##strong::rotate::: counter-clockwise
+##strong::tilt::: left-up
+##strong::tumble::: front-up
+::
+
+METHOD:: rotateDir
+METHOD:: tiltDir
+METHOD:: tumbleDir
+A flag to specify the direction of rotation on each axis. A
+code::dir:: of code::1:: will select the default direction for that axis (see
+above) while code::-1:: will invert the direction of rotation.
+
+
+
+SUBSECTION::Movement: animation
+
+
+METHOD:: rotateCyc
+METHOD:: tiltCyc
+METHOD:: tumbleCyc
+METHOD:: allCyc
+A link::Classes/Boolean:: flag stating whether the display (including axes) will
+rotate cyclically around each respective axis (or all of them in the case of
+code::allCyc::).
+
+METHOD:: rotateOsc
+METHOD:: tiltOsc
+METHOD:: tumbleOsc
+METHOD:: allOsc
+A link::Classes/Boolean:: flag stating whether the display (including axes) will
+oscillate around each respective axis (or all of them in the case of
+code::allOsc::).
+
+METHOD:: rotatePeriod
+METHOD:: tiltPeriod
+METHOD:: tumblePeriod
+METHOD:: allPeriod
+The cycle or oscillation period of each or all axes, in seconds.
+
+METHOD:: rotateRate
+METHOD:: tiltRate
+METHOD:: tumbleRate
+METHOD:: allRate
+The cycle or oscillation period of each or all axes, in Hertz.
+
+METHOD:: rotateOscWidth
+METHOD:: tiltOscWidth
+METHOD:: tumbleOscWidth
+Set the oscillation width of each axis in radians.
+
+METHOD:: varyMotion
+Set an code::axis:: (code::'rotate'::, code::'tilt'::, or code::'tumble'::)
+with a link::Classes/Boolean:: flag to randomize its motion, if it's
+oscillating or cycling.
+
+METHOD:: randomVariance
+Set the random variance applied to those axes for which link::#-varyMotion::
+ is code::true::. The value of variance is normalized to the phase increment of
+each frame, so a variance of code::0:: has no effect, while a variance of
+code::1:: could potentially step twice as far (twice as fast) on each frame.
+Default is code::0.15::.
+
+METHOD:: frameRate
+Set the framerate of the animation if the view is set to cycle
+(link::#-rotateCyc::) or oscillate (link::#-rotateOsc::).
+
+
+
+SUBSECTION::View options
+
+METHOD:: showConnections
+A link::Classes/Boolean:: toggling the connection lines on and off.
+link::#-connections:: must be set.
+
+METHOD:: axisScale
+Adjust the length of the axes. code::scale:: of code::1:: makes the axes as long
+as the distance to the outermost point. Show/hide the axes with
+link::#-showAxes::.
+
+
+
+METHOD:: pointDistScale
+Scale the size of the points with distance. A code::norm:: of code::0.5:: would
+scale the farthest point to be one half the size of the nearest point.
+
+
+METHOD:: axisColors
+A 3-element link::Classes/Array:: of link::Classes/Colors:: in the order
+code::[x,y,z]::.
+
+ARGUMENT:: colorArray
+(describe argument here)
+
+
+METHOD:: pointColors
+(describe method here)
+
+ARGUMENT:: arrayOfColors
+(describe argument here)
+
+
+METHOD:: eyeDist
+(describe method here)
+
+ARGUMENT:: norm
+(describe argument here)
+
+
+
+
+SUBSECTION:: Internal properties
+
+METHOD:: userView
+Returns the link::Classes/UserView:: which is used for the underlying display.
+
+
+METHOD:: pointsNorm
+Return the link::Classes/Array:: of link::Classes/Cartesian:: points used
+internally for plotting. i.e. normalized to a radius of 1.
+
+
+
+
+
+METHOD:: reset
+(describe method here)
+
+
+
+
+
+
+
+
+METHOD:: prCheckAnimate
+(describe method here)
+
+ARGUMENT:: which
+(describe argument here)
+
+ARGUMENT:: bool
+(describe argument here)
+
+
+
+METHOD:: hueRange
+(describe method here)
+
+ARGUMENT:: hueLow
+(describe argument here)
+
+ARGUMENT:: hueHigh
+(describe argument here)
+
+ARGUMENT:: sat
+(describe argument here)
+
+ARGUMENT:: val
+(describe argument here)
+
+ARGUMENT:: alpha
+(describe argument here)
+
+ARGUMENT:: scramble
+(describe argument here)
+
+
+
+METHOD:: showView
+(describe method here)
+
+
+
+METHOD:: rotateOscPeriod
+(describe method here)
+
+ARGUMENT:: seconds
+(describe argument here)
+
+
+
+METHOD:: connectionColor
+(describe method here)
+
+ARGUMENT:: aColor
+(describe argument here)
+
+
+
+METHOD:: tumbleCyc
+(describe method here)
+
+ARGUMENT:: bool
+(describe argument here)
+
+
+
+METHOD:: tumbleOscPeriod
+(describe method here)
+
+ARGUMENT:: seconds
+(describe argument here)
+
+
+
+METHOD:: showIndices
+(describe method here)
+
+ARGUMENT:: bool
+(describe argument here)
+
+
+
+METHOD:: skewY
+(describe method here)
+
+ARGUMENT:: norm
+(describe argument here)
+
+
+
+METHOD:: indicesColor
+(describe method here)
+
+ARGUMENT:: aColor
+(describe argument here)
+
+
+
+METHOD:: tiltPhase
+(describe method here)
+
+
+
+METHOD:: tiltCyc
+(describe method here)
+
+ARGUMENT:: bool
+(describe argument here)
+
+
+
+METHOD:: rotateOscWidth
+(describe method here)
+
+ARGUMENT:: widthRad
+(describe argument here)
+
+
+
+METHOD:: colorGroups
+(describe method here)
+
+ARGUMENT:: arraysOfIndices
+(describe argument here)
+
+ARGUMENT:: defaultColor
+(describe argument here)
+
+
+
+METHOD:: updateCanvasDims
+(describe method here)
+
+
+
+METHOD:: layItOut
+(describe method here)
+
+
+
+METHOD:: renderDistanceSize
+(describe method here)
+
+ARGUMENT:: bool
+(describe argument here)
+
+
+
+METHOD:: initInteractions
+(describe method here)
+
+
+
+METHOD:: tumbleDir
+(describe method here)
+
+ARGUMENT:: dir
+(describe argument here)
+
+
+
+METHOD:: tumblePhase
+(describe method here)
+
+
+
+METHOD:: update
+(describe method here)
+
+ARGUMENT:: who
+(describe argument here)
+
+ARGUMENT:: what
+(describe argument here)
+
+ARGUMENT::  ... args
+(describe argument here)
+
+
+
+
+
+METHOD:: rotateStep
+(describe method here)
+
+
+
+METHOD:: rotateRate
+(describe method here)
+
+ARGUMENT:: hz
+(describe argument here)
+
+
+
+METHOD:: originDist
+(describe method here)
+
+ARGUMENT:: norm
+(describe argument here)
+
+
+
+METHOD:: init
+(describe method here)
+
+ARGUMENT:: argSpec
+(describe argument here)
+
+ARGUMENT:: initVal
+(describe argument here)
+
+
+
+METHOD:: allPeriod
+(describe method here)
+
+ARGUMENT:: seconds
+(describe argument here)
+
+
+
+METHOD:: units
+(describe method here)
+
+ARGUMENT:: radiansOrDegrees
+(describe argument here)
+
+
+
+METHOD:: minDim
+(describe method here)
+
+
+
+
+
+
+METHOD:: tiltOscPeriod
+(describe method here)
+
+ARGUMENT:: seconds
+(describe argument here)
+
+
+
+
+
+
+METHOD:: showAxes
+(describe method here)
+
+ARGUMENT:: bool
+(describe argument here)
+
+
+
+METHOD:: allOscWidth
+(describe method here)
+
+ARGUMENT:: widthRad
+(describe argument here)
+
+
+
+METHOD:: setOrtho
+(describe method here)
+
+ARGUMENT:: axis
+(describe argument here)
+
+ARGUMENT:: offset
+(describe argument here)
+
+
+
+METHOD:: allOscPeriod
+(describe method here)
+
+ARGUMENT:: seconds
+(describe argument here)
+
+
+
+METHOD:: skewX
+(describe method here)
+
+ARGUMENT:: norm
+(describe argument here)
+
+
+
+
+METHOD:: makeShowView
+(describe method here)
+
+
+
+
+
+METHOD:: pointSize
+(describe method here)
+
+ARGUMENT:: px
+(describe argument here)
+
+
+METHOD:: highlightPoints
+Provide emphasis on specific points in the view through color.
+
+ARGUMENT:: arrayOfIndices
+An link::Classes/Array:: of indices of the points to render in
+code::highlightColor::.
+
+ARGUMENT:: highlightColor
+The link::Classes/Color:: for highlighted points. Default
+code::Color.red::.
+
+ARGUMENT:: defaultColor
+The link::Classes/Color:: for non-highlighted points. Default
+code::Color.gray.alpha_(0.25)::.
+
+
+METHOD:: removeHighlight
+Restore the points' colors to the state before they were set to
+link::#-highlightPoints::.
+
+
+
+
+SUBSECTION:: Perspective
+
+METHOD:: setPerspective
+Set the view to render the points in perspective (as opposed to an orthogonal
+view).
+
+
+METHOD:: translateX
+Translate the origin of the display on the X axis. A code::norm:: of code::-1:: and
+code::1::, is far left and right of the view, respectively.
+
+METHOD:: translateY
+Translate the origin of the display on the Y axis. A code::norm:: of code::-1:: and
+code::1::, is bottom and top of the view, respectively.
+
+METHOD:: refresh
+Refresh the view. Most methods which change render settings refresh the view
+automatically.
+
+
+
+
+
+METHOD:: tiltDir
+(describe method here)
+
+ARGUMENT:: dir
+(describe argument here)
+
+
+
+METHOD:: allDir
+(describe method here)
+
+ARGUMENT:: dir
+(describe argument here)
+
+
+
+
+
+
+
+
+
+
+EXAMPLES::
+
+code::
+(some example code)
+::
+
+PRIVATE:: perspectiveView, drawFunc, makePerspectiveView, baseTilt, baseRotation, baseTumble, cen, rotatePhase, rotationView, cycTilt, cycRotate, cycTumble, oscTilt, oscRotate, oscTumble, prUpdateColors, randomizedAxes
