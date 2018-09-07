@@ -69,7 +69,7 @@ Unversity of California at Berkeley
 				[   50, 61, 70, 80, 100, 120, 180].differentiate, // numPoints
 				'lin'
 			);
-			sec = if (numPnts < 181) { pntEnv[numPnts] };
+			sec = if (numPnts < 181) { pntEnv[numPnts].round(0.1) };
 
 			postf(
 				"Calculating point triangulation...\n"

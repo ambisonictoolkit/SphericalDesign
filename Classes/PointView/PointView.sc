@@ -46,6 +46,7 @@ PointView : View {
 	// views
 	var <userView, <rotationView, <showView, <perspectiveView;
 
+
 	*new { |parent, bounds = (Rect(0,0, 1000, 715))|
 		^super.new(parent, bounds).init;
 	}
@@ -247,13 +248,35 @@ PointView : View {
 
 		triBut = Button()
 		.action_({
-
+			var triplets, pairsDone, pairs, connPairs, wrapped;
 			statusTxt.string_("Triangulating points...");
 			fork({
 				try {
-					this.connections_(
-						SphericalDesign().points_(points).calcTriplets.triplets
-					);
+					triplets = SphericalDesign().points_(points).calcTriplets.triplets;
+					// reduce to point pairs to remove repeated lines
+					connPairs = [];
+					pairsDone = []; // list of pairs already found
+
+					triplets.do{ |trip|
+						wrapped = (trip ++ trip.first);
+						3.collect({ |i|
+							[wrapped[i], wrapped[i+1]]
+						}).do{ |pair|
+							// if (pairsDone.includes(pair).not) {
+							if (
+								pairsDone.any({ |pdone|
+									{ |me| me[0] == pair[0] and: { me[1] == pair[1] } }.matchItem(pdone)
+								}).not
+							) {
+								connPairs = connPairs.add(pair);         // add pair to connection list
+								pairsDone = pairsDone.add(pair);         // keep track of a duple that's been used
+								pairsDone = pairsDone.add(pair.reverse); // the reverse pair is identical
+							};
+
+						}
+					};
+
+					this.connections_(connPairs);
 					statusTxt.string_("");
 				} {
 					var str = "Couldn't calulate the triangulation of points :(";
@@ -322,9 +345,9 @@ PointView : View {
 				if (cb.value) {
 					this.setOrtho(ax,
 						if (offposChk.value) {
-							0.25pi.neg
+							0.25pi
 						} {
-							if (offnegChk.value) { 0.25pi } { 0 }
+							if (offnegChk.value) { 0.25pi.neg } { 0 }
 						}
 					);
 					orthoOffsetView.visible = true;
@@ -346,7 +369,7 @@ PointView : View {
 		.action_({ |cb|
 			if (cb.value) {
 				offnegChk.value_(false);
-				this.setOrtho(orthoAxis, 0.25pi.neg)
+				this.setOrtho(orthoAxis, 0.25pi)
 			} {
 				this.setOrtho(orthoAxis, 0)
 			}
@@ -356,7 +379,7 @@ PointView : View {
 		.action_({ |cb|
 			if (cb.value) {
 				offposChk.value_(false);
-				this.setOrtho(orthoAxis, 0.25pi)
+				this.setOrtho(orthoAxis, 0.25pi.neg)
 			} {
 				this.setOrtho(orthoAxis, 0)
 			}
@@ -684,48 +707,6 @@ PointView : View {
 				};
 			};
 
-			// draw points and indices
-			strRect = "000000".bounds.asRect;
-			pnts_xf.do{ |pnt, i|
-				var pntSize, f, fCol;
-
-				if (renderDistanceSize) {
-					pntSize = pnt_depths[i].linlin(-1.0,1.0, pointSize, pointSize * pointDistScale);
-					fCol = indicesColor;
-				} {
-					pntSize = pointSize;
-				};
-
-				// draw index
-				if (showIndices) {
-					Pen.fillColor_(
-						indicesColor.alpha_(
-							pnt_depths[i].linlin(-1.0,1.0, 1, 0.35)
-						)
-					);
-
-					f = Font.default.pointSize_(
-						pnt_depths[i].linlin(-1.0,1.0, 18, 10) // change font size with depth
-					);
-
-					// index labels smoothly rotate around the point
-					// more expensive but looks better
-					rho = pnts[i].rho + (pntSize * 1.5);
-					offset = pnts[i].asPolar.rho_(rho).asPoint - pnts[i];
-					Pen.stringCenteredIn(i.asString, strRect.center_(pnt + offset), f);
-
-					// // index labels always on the outside of the sphere, but jumpy
-					// Pen.stringCenteredIn(i.asString, strRect.center_(pnt + Point(pntSize * pnts[i].x.sign, pntSize * pnts[i].y.sign)), f);
-
-					// // index labels always same offset from point, cheap but cluttered
-					// Pen.stringLeftJustIn(i.asString,	strRect.left_(pnt.x + pntSize).bottom_(pnt.y + pntSize), f);
-				};
-
-				// draw point
-				Pen.fillColor_(prPntDrawCols.wrapAt(i));
-				Pen.fillOval(Size(pntSize, pntSize).asRect.center_(pnt));
-			};
-
 			// draw connecting lines
 			if (showConnections and: { connections.notNil }) {
 				connections.do{ |set, i|
@@ -740,13 +721,104 @@ PointView : View {
 
 					set.rotate(-1).do{ |idx, j|
 						// change line width with depth
-						Pen.width_(pDpths[j].linlin(-1.0,1.0, 3.5, 0.5));
+						// Pen.width_(pDpths[j].linlin(-1.0,1.0, 3.5, 0.5));
+						Pen.width_(pDpths[j].lincurve(-1.0,1.0, 3.5, 0.5, -3.5));
 						Pen.lineTo(pnts_xf[idx]);
 						Pen.stroke;
 						Pen.moveTo(pnts_xf[idx]);
 					};
 				};
 
+			};
+
+			// draw points and indices
+			strRect = "000000".bounds.asRect;
+
+			// // original method, just draws in point order, not depth order, no visual glitches
+			// pnts_xf.do{ |pnt, i|
+			// 	var pntSize, f, fCol;
+			//
+			// 	if (renderDistanceSize) {
+			// 		pntSize = pnt_depths[i].linlin(-1.0,1.0, pointSize, pointSize * pointDistScale);
+			// 		fCol = indicesColor;
+			// 	} {
+			// 		pntSize = pointSize;
+			// 	};
+			//
+			// 	// draw index
+			// 	if (showIndices) {
+			// 		Pen.fillColor_(
+			// 			indicesColor.alpha_(
+			// 				pnt_depths[i].linlin(-1.0,1.0, 1, 0.35)
+			// 			)
+			// 		);
+			//
+			// 		f = Font.default.pointSize_(
+			// 			pnt_depths[i].linlin(-1.0,1.0, 18, 10) // change font size with depth
+			// 		);
+			//
+			// 		// index labels smoothly rotate around the point
+			// 		// more expensive but looks better
+			// 		rho = pnts[i].rho + (pntSize * 1.5);
+			// 		offset = pnts[i].asPolar.rho_(rho).asPoint - pnts[i];
+			// 		Pen.stringCenteredIn(i.asString, strRect.center_(pnt + offset), f);
+			//
+			// 		// // index labels always on the outside of the sphere, but jumpy
+			// 		// Pen.stringCenteredIn(i.asString, strRect.center_(pnt + Point(pntSize * pnts[i].x.sign, pntSize * pnts[i].y.sign)), f);
+			//
+			// 		// // index labels always same offset from point, cheap but cluttered
+			// 		// Pen.stringLeftJustIn(i.asString,	strRect.left_(pnt.x + pntSize).bottom_(pnt.y + pntSize), f);
+			// 	};
+			//
+			// 	// draw point
+			// 	Pen.fillColor_(prPntDrawCols.wrapAt(i));
+			// 	Pen.fillOval(Size(pntSize, pntSize).asRect.center_(pnt));
+			// };
+
+
+			// NOTE: this seems to bring about dropouts on the points and
+			// index labels at high point counts, not sure why... so leaving original method above
+			// iterate over indices in order of farthest to nearest depth
+			pnt_depths.order({ |a, b| a > b }).do{ |sortIdx, i|
+				var pnt, pntSize, f, fCol;
+
+				pnt = pnts_xf[sortIdx];
+
+				if (renderDistanceSize) {
+					pntSize = pnt_depths[sortIdx].linlin(-1.0,1.0, pointSize, pointSize * pointDistScale);
+					fCol = indicesColor;
+				} {
+					pntSize = pointSize;
+				};
+
+				// draw index
+				if (showIndices) {
+					Pen.fillColor_(
+						indicesColor.alpha_(
+							pnt_depths[sortIdx].linlin(-1.0,1.0, 1, 0.35)
+						)
+					);
+
+					f = Font.default.pointSize_(
+						pnt_depths[sortIdx].linlin(-1.0,1.0, 18, 10) // change font size with depth
+					);
+
+					// index labels smoothly rotate around the point
+					// more expensive but looks better
+					rho = pnts[sortIdx].rho + (pntSize * 1.5);
+					offset = pnts[sortIdx].asPolar.rho_(rho).asPoint - pnts[sortIdx];
+					Pen.stringCenteredIn(sortIdx.asString, strRect.center_(pnt + offset), f);
+
+					// // index labels always on the outside of the sphere, but jumpy
+					// Pen.stringCenteredIn(i.asString, strRect.center_(pnt + Point(pntSize * pnts[sortIdx].x.sign, pntSize * pnts[sortIdx].y.sign)), f);
+
+					// // index labels always same offset from point, cheap but cluttered
+					// Pen.stringLeftJustIn(i.asString,	strRect.left_(pnt.x + pntSize).bottom_(pnt.y + pntSize), f);
+				};
+
+				// draw point
+				Pen.fillColor_(prPntDrawCols.wrapAt(sortIdx));
+				Pen.fillOval(Size(pntSize, pntSize).asRect.center_(pnt));
 			};
 		}
 	}
@@ -1290,7 +1362,7 @@ PointView : View {
 Usage
 
 (
-t = TDesign(8).visualize(bounds: [200,200, 1200,700].asRect, showConnections: false)
+t = TDesign(59).visualize(bounds: [200,200, 1200,700].asRect, showConnections: false)
 )
 
 
