@@ -75,6 +75,7 @@ SphericalDesign {
 
 	prMirror { |method, recalcTriplets|
 		this.performOnDesign(method);
+		// only recalculate if triplets were previously calculated
 		if (recalcTriplets and: { triplets.notNil }) { this.calcTriplets }
 	}
 
@@ -95,7 +96,7 @@ SphericalDesign {
 
 	points_ { |cartesianArray|
 		points = cartesianArray;
-		this.changed(\points, points); // TODO: avoid broadcasting points?
+		this.changed(\points);
 	}
 
 	// azElArray: 2D array containing [azimuth, inclination] (theta, phi) pairs
