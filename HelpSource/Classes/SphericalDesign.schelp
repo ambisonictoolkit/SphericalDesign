@@ -1,0 +1,243 @@
+TITLE:: SphericalDesign
+summary:: A class encapsulating a set of points which represent a spherical design, allowing for searching, basic transformations and visualization of the design.
+categories:: Math
+related:: Classes/TDesign, Classes/Cartesian, Classes/Spherical
+
+DESCRIPTION::
+
+definitionlist::
+## Spherical designs
+||Let emphasis::X:: be a finite subset of emphasis::S^(n−1)::. Spherical codes
+and spherical designs are nothing but finite subsets of emphasis::S^(n−1)::.
+Roughly speaking, the code theoretical viewpoint is to try to find emphasis::X::,
+whose points are scattered on emphasis::S^(n−1):: as far as possible, i.e. the
+minimum distance of emphasis::X:: is as large as possible for a given size of
+emphasis::X::. ... On the other hand, the design theoretical viewpoint is to try
+to find emphasis::X:: which globally approximates the sphere emphasis::S^(n−1)::
+very well. footnote::Bannai, E., Bannai, E. A survey on spherical designs and
+algebraic combinatorics on spheres. European Journal of Combinatorics,
+Volume 30, Issue 6, August 2009, Pages 1392-1425.
+::
+::
+
+This class does not strictly enforce the definition of a spherical design, in
+fact it is just a collection of points (link::Classes/Cartesian:: objects) which
+you can set arbitrarily. The expectation however is that you'll be importing
+designs that are provided, such as those emphasis::t::-designs available through
+the subclass link::Classes/TDesign::, or assigning your own points to be
+regarded as a spherical design.
+
+
+NOTE::
+The coordinate system follows that of link::Classes/Spherical:: and
+link::Classes/Polar::. The +X axis points forward, +Y points left, +Z points
+upward.
+::
+
+
+CLASSMETHODS::
+
+METHOD:: new
+Create an empty SphericalDesign without any initial points. To populate a design
+with predefined design points, use one of the subclasses, or the convenience
+methods provided in this class such as link::#*newT:: for a spherical
+emphasis::t::-design.
+
+METHOD:: newT
+Returns a new link::Classes/TDesign::.
+
+ARGUMENT:: numPoints
+The number of points you'd like in your design. If multiple matches in the
+design library are found, the code::t:: argument must be specified to
+disambiguate, otherwise an error will be thrown.
+
+ARGUMENT:: t
+The desired emphasis::t:: parameter. Can be code::nil:: but the method will
+throw an error if multiple design matches are found for code::numPoints::.
+(Some valid designs include the same number of points but different values of
+emphasis::t::.)
+
+
+INSTANCEMETHODS::
+
+
+SUBSECTION:: Transforming
+
+METHOD:: rotate
+Rotate all points in the design around the origin. Positive rotation is counter
+clockwise.
+
+METHOD:: tilt
+Tilt all points in the design around the origin. Positive tilt moves the
+leftmost point (+Y) toward the zenith (+Z).
+
+METHOD:: tumble
+Tumble all points in the design around the origin. Positive tumble moves the
+forward point (+X) toward the zenith (+Z).
+
+METHOD:: mirrorX
+Reflect all points in the design along the X axis (through the YZ plane).
+ARGUMENT:: recalcTriplets
+See explanation in link::#-mirrorO::.
+
+METHOD:: mirrorY
+Reflect all points in the design along the Y axis (through the XZ plane).
+ARGUMENT:: recalcTriplets
+See explanation in link::#-mirrorO::.
+
+METHOD:: mirrorZ
+Reflect all points in the design along the Z axis (through the XY plane).
+ARGUMENT:: recalcTriplets
+See explanation in link::#-mirrorO::.
+
+METHOD:: mirrorO
+Reflect all points in the design through the origin.
+ARGUMENT:: recalcTriplets
+Mirroring the design invalidates the design's link::#-triplets::.
+By default, if triplets have already been calculated, they will be
+recalculated, unless code::recalcTriplets:: is code::false::. This can be
+useful if you're working with a design and want to perform multiple
+transformations before re-calculating the triplets (which can take some time for
+large designs).
+
+METHOD:: performOnDesign
+Perform code::method:: with code::args:: on each of the
+link::Classes/Cartesian:: points in the design. Therefore
+link::Classes/Cartesian:: must respond to code::method::.
+
+DISCUSSION:: If the method you perform on the design invalidates the design's
+link::#-triplets:: (assuming you've calculated and are using them), you'll want
+to either link::#-resetTriplets:: beforehand to clear them and/or call
+link::#-calcTriplets:: after performing the code::method::.
+
+METHOD:: reset
+Reset the points to their original positions before any transformations were
+performed.
+
+
+SUBSECTION::Sorting and selecting
+
+METHOD:: nearestPoint
+Return the point nearest to [code::theta, phi::].
+
+METHOD:: nearestIndex
+Return the index of point nearest to [code::theta, phi::].
+
+METHOD:: pointsWithin
+Returns an Link::Classes/Array:: of the link::Classes/Cartesian:: points that lie within a
+region centered at [code::theta, phi::] with an extent of
+code::spread:: radians across. Points exactly on the boundary will be included
+if code::inclusive:: is code::true::.
+
+METHOD:: indicesWithin
+Returns an Link::Classes/Array:: of the link::Classes/Cartesian:: points that lie within a
+region centered at [code::theta, phi::] with an extent of
+code::spread:: radians across. Points exactly on the boundary will be included
+if code::inclusive:: is code::true::.
+
+METHOD:: nearestPointsWithin
+Same as link::#-pointsWithin::, but the point indices are sorted by ascending
+distance from [code::theta, phi::].
+
+METHOD:: nearestIndicesWithin
+Same as link::#-indicesWithin::, but the point indices are sorted by ascending
+distance from [code::theta, phi::].
+
+METHOD:: vectorAngles
+Returns an Link::Classes/Array:: of anglular distances from
+[code::theta, phi::] to each point.
+
+
+SUBSECTION::State variables
+
+METHOD:: points
+Get/set the points that comprise the spherical design.
+In normal use you would not set this directly but rather this would be set by
+the underlying design library.
+
+ARGUMENT:: cartesianArray
+An Link::Classes/Array:: of Link::Classes/Cartesian:: objects.
+
+METHOD:: directions
+Get/set the directions (azimuth, elevation) of points that comprise the
+spherical design. The resulting link::#-points:: are assigned a rho of 1,
+so they lie on the surface of a unit sphere.
+In normal use you would not set this directly but rather this would be set by
+the underlying design library.
+
+ARGUMENT:: azElArray
+Directions are specified and returned as a 2D Link::Classes/Array:: of [azimuth,
+elevation] (theta, phi) pairs.
+
+METHOD:: numPoints
+Returns the number of points in the design. Synonymous with link::#-size::.
+
+METHOD:: size
+Returns the number of points in the design. Synonymous with link::#-numPoints::.
+
+METHOD:: triplets
+Returns an Link::Classes/Array:: of triplets (an Link::Classes/Array:: of three
+Link::Classes/Float::s) describing the indices of triangles formed through the
+calculation of the triangular mesh across the points.
+
+Returns code::nil:: if triplets haven't yet been calculated.
+See link::#-calcTriplets:: for more information.
+
+
+
+SUBSECTION::Miscellaneous
+
+METHOD:: resetTriplets
+Set link::#-triplets:: to code::nil:: and clear the internal table of vector
+angles between points. If you're working with large designs and transforming,
+etc., this may be useful to manually reset these internal variables.
+
+
+METHOD:: visualize
+Create a link::Classes/PointView:: displaying the design.
+
+ARGUMENT:: parent
+An optional link::Classes/View:: to hold the link::Classes/PointView::.
+
+ARGUMENT:: bounds
+An optional link::Classes/Rect:: describing the position and size of the
+link::Classes/PointView::.
+
+ARGUMENT:: showConnections
+A link::Classes/Boolean:: denoting whether connecting lines between points will
+be displayed on opening. The connections between points will default to the corresponding
+link::#-triplets::, so if code::showConnections:: is code::true:: (default),
+they will be calculated. This calculation can take a long time. See the
+teletype::WARNING:: in link::#-calcTriplets::.
+
+
+METHOD:: view
+Return the Link::Classes/PointView:: created after calling link::#-visualize::.
+
+
+METHOD:: calcTriplets
+Calculate the triangular mesh across the points and populate
+link::#-triplets:: with indices of the triangles. Similar to the
+Delaunay triangulation or convex hull, which is useful for visualization (see
+link::#-visualize::) and generating triangles for VBAP.
+footnote::-calcTriplets and its associated methods were copied, with some
+modification, from Scott Wilson's port (VBAPSpeakerArray) of Ville Pukki's VBAP
+library in PureData. Full attribution and copyright can be found in the source
+file extSphericalDesign.sc::
+WARNING:: This calculation can take a long time for
+strong::numPoints:: above 30 or so. 50 points: ~5 sec, 70 points: ~11 sec, 120
+points: ~70 seconds, ...::
+
+EXAMPLES::
+
+code::
+// Coming soon...
+::
+
+SECTION::Authors
+Authors:
+
+M. McCrea, D. Peterson
+2018
+
+PRIVATE:: prMirror, initTDesign, vec_angle, vec_length, minSideLength, prSaveInitState, unq_cross_prod, vec_prod, lines_intersect, any_ls_inside_triplet, vol_p_side_lgth

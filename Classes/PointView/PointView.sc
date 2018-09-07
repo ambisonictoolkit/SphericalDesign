@@ -21,6 +21,7 @@ PointView : View {
 	var renderDistanceSize = true;
 	var prevColors, highlighted = false;
 	var connectionColor, indicesColor;
+	var <groupColors, <colorGroups, defaultGroupColor;
 
 	// movement
 	var <baseRotation, <baseTilt, <baseTumble; // radians, rotations before any movement offsets are applied
@@ -38,14 +39,15 @@ PointView : View {
 	var <rotateMode;       // \rtt or \ypr
 	var <randomizedAxes;   // dictionary of booleans for randomize state of each axis
 	var <>randomVariance;  // normalized value to apply to movement speed if randomized
+	var extrinsicRotation = false; // flag if mouse interaction requires additional extrinsic rotation
+	var exRot = 0, exTum = 0, prevExRot = 0, prevExTum = 0;
+	var rotPxStep = 1;
 
 	// views
 	var <userView, <rotationView, <showView, <perspectiveView;
 
-	// interaction
-	var mouseDownPnt, mouseUpPnt, mouseMovePnt;
 
-	*new { |parent, bounds = (Rect(0,0, 600, 500))|
+	*new { |parent, bounds = (Rect(0,0, 1000, 715))|
 		^super.new(parent, bounds).init;
 	}
 
@@ -69,6 +71,8 @@ PointView : View {
 		randomVariance = 0.15;
 		connectionColor = Color.blue.alpha_(0.1);
 		indicesColor = Color.black;
+		groupColors = Color.red;
+		defaultGroupColor = Color.gray.alpha_(0.3);
 
 		userView = UserView(this, this.bounds.origin_(0@0))
 		.resize_(5)
@@ -96,11 +100,11 @@ PointView : View {
 		this.tumbleOscPeriod_(this.tumblePeriod);
 		tumbleOscWidth = tiltOscWidth = rotateOscWidth = initOscWidth;
 		this.rotateMode_(rotateMode);
-		this.rotateRate_(rotateRate);
-		this.tiltRate_(tiltRate);
-		this.tumbleRate_(tumbleRate);
+		this.rotateCycRate_(rotateRate);
+		this.tiltCycRate_(tiltRate);
+		this.tumbleCycRate_(tumbleRate);
 
-		// this.initInteractions; // method currently empty
+		this.initInteractions; // method currently empty
 
 		// initialize canvas
 		this.updateCanvasDims;
@@ -244,13 +248,35 @@ PointView : View {
 
 		triBut = Button()
 		.action_({
-
+			var triplets, pairsDone, pairs, connPairs, wrapped;
 			statusTxt.string_("Triangulating points...");
 			fork({
 				try {
-					this.connections_(
-						SphericalDesign().points_(points).calcTriplets.triplets
-					);
+					triplets = SphericalDesign().points_(points).calcTriplets.triplets;
+					// reduce to point pairs to remove repeated lines
+					connPairs = [];
+					pairsDone = []; // list of pairs already found
+
+					triplets.do{ |trip|
+						wrapped = (trip ++ trip.first);
+						3.collect({ |i|
+							[wrapped[i], wrapped[i+1]]
+						}).do{ |pair|
+							// if (pairsDone.includes(pair).not) {
+							if (
+								pairsDone.any({ |pdone|
+									{ |me| me[0] == pair[0] and: { me[1] == pair[1] } }.matchItem(pdone)
+								}).not
+							) {
+								connPairs = connPairs.add(pair);         // add pair to connection list
+								pairsDone = pairsDone.add(pair);         // keep track of a duple that's been used
+								pairsDone = pairsDone.add(pair.reverse); // the reverse pair is identical
+							};
+
+						}
+					};
+
+					this.connections_(connPairs);
 					statusTxt.string_("");
 				} {
 					var str = "Couldn't calulate the triangulation of points :(";
@@ -319,9 +345,9 @@ PointView : View {
 				if (cb.value) {
 					this.setOrtho(ax,
 						if (offposChk.value) {
-							0.25pi.neg
+							0.25pi
 						} {
-							if (offnegChk.value) { 0.25pi } { 0 }
+							if (offnegChk.value) { 0.25pi.neg } { 0 }
 						}
 					);
 					orthoOffsetView.visible = true;
@@ -343,7 +369,7 @@ PointView : View {
 		.action_({ |cb|
 			if (cb.value) {
 				offnegChk.value_(false);
-				this.setOrtho(orthoAxis, 0.25pi.neg)
+				this.setOrtho(orthoAxis, 0.25pi)
 			} {
 				this.setOrtho(orthoAxis, 0)
 			}
@@ -353,7 +379,7 @@ PointView : View {
 		.action_({ |cb|
 			if (cb.value) {
 				offposChk.value_(false);
-				this.setOrtho(orthoAxis, 0.25pi)
+				this.setOrtho(orthoAxis, 0.25pi.neg)
 			} {
 				this.setOrtho(orthoAxis, 0)
 			}
@@ -465,6 +491,7 @@ PointView : View {
 		bnds = userView.bounds;
 		cen  = bnds.center;
 		minDim = min(bnds.width, bnds.height);
+		rotPxStep = 2pi / bnds.width;
 	}
 
 	points_ { |cartesians, resetConnections = true|
@@ -521,21 +548,28 @@ PointView : View {
 			scale = minDim.half;
 
 			rotPnts = { |carts|
-				switch (rotateMode,
+				var rotated;
+				rotated = switch (rotateMode,
 					\rtt, {
 						carts.collect{ |pnt|
 							pnt.rotate(rotate).tilt(tilt).tumble(tumble)
-							.rotate(0.5pi).tilt(0.5pi) // orient so view matches ambisonics
 						}
 					},
 					\ypr, {
 						carts.collect{ |pnt|
-							pnt
-							.tilt(tilt).tumble(tumble).rotate(rotate)
-							.rotate(0.5pi).tilt(0.5pi) // orient so view matches ambisonics
+							pnt.tilt(tilt).tumble(tumble).rotate(rotate)
 						}
 					}
-				)
+				);
+
+				// perform additional rotation from mouse
+				// interaction after model rotation
+				if (extrinsicRotation and: { ortho.not }) {
+					rotated = rotated.collect{ |pnt| pnt.rotate(exRot).tumble(exTum) }
+				};
+
+				// orient so view matches ambisonics and return
+				rotated.collect{ |pnt| pnt.rotate(0.5pi).tilt(0.5pi) };
 			};
 
 			// xformed points from 3D -> perspective -> 2D
@@ -585,12 +619,14 @@ PointView : View {
 					) % 2pi;
 					rotate = sin(rotatePhase) * 0.5 * rotateOscWidth + baseRotation;
 				};
+
 				if (oscTilt) {
 					tiltPhase = (
 						tiltPhase + (tiltOscPhsInc * tiltDir)
 					) % 2pi;
 					tilt = sin(tiltPhase) * 0.5 * tiltOscWidth + baseTilt;
 				};
+
 				if (oscTumble) {
 					tumblePhase = (
 						tumblePhase + (tumbleOscPhsInc * tumbleDir)
@@ -599,12 +635,11 @@ PointView : View {
 				};
 			};
 
-
 			// rotate into ambisonics coords and rotate for user
 			pnts = rotPnts.(pointsNorm);
 			axPnts = rotPnts.(axisPnts * axisScale);
 
-			// hold on to these point depths (z) for use when drawing with perspective
+			// hold on to these point depths (z in screen coords) for use when drawing with perspective
 			pnt_depths = pnts.collect(_.z);
 			axPnts_depths = axPnts.collect(_.z);
 
@@ -672,48 +707,6 @@ PointView : View {
 				};
 			};
 
-			// draw points and indices
-			strRect = "000000".bounds.asRect;
-			pnts_xf.do{ |pnt, i|
-				var pntSize, f, fCol;
-
-				if (renderDistanceSize) {
-					pntSize = pnt_depths[i].linlin(-1.0,1.0, pointSize, pointSize * pointDistScale);
-					fCol = indicesColor;
-				} {
-					pntSize = pointSize;
-				};
-
-				// draw index
-				if (showIndices) {
-					Pen.fillColor_(
-						indicesColor.alpha_(
-							pnt_depths[i].linlin(-1.0,1.0, 1, 0.35)
-						)
-					);
-
-					f = Font.default.pointSize_(
-						pnt_depths[i].linlin(-1.0,1.0, 18, 10) // change font size with depth
-					);
-
-					// index labels smoothly rotate around the point
-					// more expensive but looks better
-					rho = pnts[i].rho + (pntSize * 1.5);
-					offset = pnts[i].asPolar.rho_(rho).asPoint - pnts[i];
-					Pen.stringCenteredIn(i.asString, strRect.center_(pnt + offset), f);
-
-					// // index labels always on the outside of the sphere, but jumpy
-					// Pen.stringCenteredIn(i.asString, strRect.center_(pnt + Point(pntSize * pnts[i].x.sign, pntSize * pnts[i].y.sign)), f);
-
-					// // index labels always same offset from point, cheap but cluttered
-					// Pen.stringLeftJustIn(i.asString,	strRect.left_(pnt.x + pntSize).bottom_(pnt.y + pntSize), f);
-				};
-
-				// draw point
-				Pen.fillColor_(prPntDrawCols.wrapAt(i));
-				Pen.fillOval(Size(pntSize, pntSize).asRect.center_(pnt));
-			};
-
 			// draw connecting lines
 			if (showConnections and: { connections.notNil }) {
 				connections.do{ |set, i|
@@ -728,13 +721,104 @@ PointView : View {
 
 					set.rotate(-1).do{ |idx, j|
 						// change line width with depth
-						Pen.width_(pDpths[j].linlin(-1.0,1.0, 3.5, 0.5));
+						// Pen.width_(pDpths[j].linlin(-1.0,1.0, 3.5, 0.5));
+						Pen.width_(pDpths[j].lincurve(-1.0,1.0, 3.5, 0.5, -3.5));
 						Pen.lineTo(pnts_xf[idx]);
 						Pen.stroke;
 						Pen.moveTo(pnts_xf[idx]);
 					};
 				};
 
+			};
+
+			// draw points and indices
+			strRect = "000000".bounds.asRect;
+
+			// // original method, just draws in point order, not depth order, no visual glitches
+			// pnts_xf.do{ |pnt, i|
+			// 	var pntSize, f, fCol;
+			//
+			// 	if (renderDistanceSize) {
+			// 		pntSize = pnt_depths[i].linlin(-1.0,1.0, pointSize, pointSize * pointDistScale);
+			// 		fCol = indicesColor;
+			// 	} {
+			// 		pntSize = pointSize;
+			// 	};
+			//
+			// 	// draw index
+			// 	if (showIndices) {
+			// 		Pen.fillColor_(
+			// 			indicesColor.alpha_(
+			// 				pnt_depths[i].linlin(-1.0,1.0, 1, 0.35)
+			// 			)
+			// 		);
+			//
+			// 		f = Font.default.pointSize_(
+			// 			pnt_depths[i].linlin(-1.0,1.0, 18, 10) // change font size with depth
+			// 		);
+			//
+			// 		// index labels smoothly rotate around the point
+			// 		// more expensive but looks better
+			// 		rho = pnts[i].rho + (pntSize * 1.5);
+			// 		offset = pnts[i].asPolar.rho_(rho).asPoint - pnts[i];
+			// 		Pen.stringCenteredIn(i.asString, strRect.center_(pnt + offset), f);
+			//
+			// 		// // index labels always on the outside of the sphere, but jumpy
+			// 		// Pen.stringCenteredIn(i.asString, strRect.center_(pnt + Point(pntSize * pnts[i].x.sign, pntSize * pnts[i].y.sign)), f);
+			//
+			// 		// // index labels always same offset from point, cheap but cluttered
+			// 		// Pen.stringLeftJustIn(i.asString,	strRect.left_(pnt.x + pntSize).bottom_(pnt.y + pntSize), f);
+			// 	};
+			//
+			// 	// draw point
+			// 	Pen.fillColor_(prPntDrawCols.wrapAt(i));
+			// 	Pen.fillOval(Size(pntSize, pntSize).asRect.center_(pnt));
+			// };
+
+
+			// NOTE: this seems to bring about dropouts on the points and
+			// index labels at high point counts, not sure why... so leaving original method above
+			// iterate over indices in order of farthest to nearest depth
+			pnt_depths.order({ |a, b| a > b }).do{ |sortIdx, i|
+				var pnt, pntSize, f, fCol;
+
+				pnt = pnts_xf[sortIdx];
+
+				if (renderDistanceSize) {
+					pntSize = pnt_depths[sortIdx].linlin(-1.0,1.0, pointSize, pointSize * pointDistScale);
+					fCol = indicesColor;
+				} {
+					pntSize = pointSize;
+				};
+
+				// draw index
+				if (showIndices) {
+					Pen.fillColor_(
+						indicesColor.alpha_(
+							pnt_depths[sortIdx].linlin(-1.0,1.0, 1, 0.35)
+						)
+					);
+
+					f = Font.default.pointSize_(
+						pnt_depths[sortIdx].linlin(-1.0,1.0, 18, 10) // change font size with depth
+					);
+
+					// index labels smoothly rotate around the point
+					// more expensive but looks better
+					rho = pnts[sortIdx].rho + (pntSize * 1.5);
+					offset = pnts[sortIdx].asPolar.rho_(rho).asPoint - pnts[sortIdx];
+					Pen.stringCenteredIn(sortIdx.asString, strRect.center_(pnt + offset), f);
+
+					// // index labels always on the outside of the sphere, but jumpy
+					// Pen.stringCenteredIn(i.asString, strRect.center_(pnt + Point(pntSize * pnts[sortIdx].x.sign, pntSize * pnts[sortIdx].y.sign)), f);
+
+					// // index labels always same offset from point, cheap but cluttered
+					// Pen.stringLeftJustIn(i.asString,	strRect.left_(pnt.x + pntSize).bottom_(pnt.y + pntSize), f);
+				};
+
+				// draw point
+				Pen.fillColor_(prPntDrawCols.wrapAt(sortIdx));
+				Pen.fillOval(Size(pntSize, pntSize).asRect.center_(pnt));
 			};
 		}
 	}
@@ -870,30 +954,30 @@ PointView : View {
 		this.rotateDir_(dir).tiltDir_(dir).tumbleDir_(dir);
 	}
 
-	rotateRate_ { |hz|
+	rotateCycRate_ { |hz|
 		rotateRate = hz;
 		rotateStep = (rotateRate / frameRate) * 2pi * rotateDir;
 		this.changed(\rate, \rotate, hz);
 	}
-	tiltRate_ { |hz|
+	tiltCycRate_ { |hz|
 		tiltRate = hz;
 		tiltStep = (tiltRate / frameRate) * 2pi * tiltDir;
 		this.changed(\rate, \tilt, hz);
 	}
-	tumbleRate_ { |hz|
+	tumbleCycRate_ { |hz|
 		tumbleRate = hz;
 		tumbleStep = (tumbleRate / frameRate) * 2pi * tumbleDir;
 		this.changed(\rate, \tumble, hz);
 	}
-	allRate_ { |hz|
-		this.rotateRate_(hz).tiltRate_(hz).tumbleRate_(hz);
+	allCycRate_ { |hz|
+		this.rotateCycRate_(hz).tiltCycRate_(hz).tumbleCycRate_(hz);
 	}
 
-	rotatePeriod_ { |seconds| this.rotateRate_(seconds.reciprocal) }
-	tiltPeriod_   { |seconds| this.tiltRate_(seconds.reciprocal) }
-	tumblePeriod_ { |seconds| this.tumbleRate_(seconds.reciprocal) }
-	allPeriod_    { |seconds|
-		this.rotateRate_(seconds).tiltRate_(seconds).tumbleRate_(seconds)
+	rotateCycPeriod_ { |seconds| this.rotateCycRate_(seconds.reciprocal) }
+	tiltCycPeriod_   { |seconds| this.tiltCycRate_(seconds.reciprocal) }
+	tumbleCycPeriod_ { |seconds| this.tumbleCycRate_(seconds.reciprocal) }
+	allCycPeriod_    { |seconds|
+		this.rotateCycRate_(seconds).tiltCycRate_(seconds).tumbleCycRate_(seconds)
 	}
 
 	rotatePeriod { ^rotateRate.reciprocal }
@@ -1030,15 +1114,17 @@ PointView : View {
 
 	// draw lines between these indices of points
 	// e.g. [[1,3],[0,5],[2,4]]
-	connections_ { |arraysOfIndices|
+	connections_ { |arraysOfIndices, showConnections = true|
 		if (arraysOfIndices.rank != 2) {
 			"[PointView:-connections_] arraysOfIndices argument "
 			"is not an array with rank == 2.".throw
 		};
 
 		connections = arraysOfIndices;
-		showConnections = true;
-		this.refresh;
+		if (showConnections) {
+			showConnections = true;
+			this.refresh;
+		};
 	}
 
 	axisColors_ { |colorArray|
@@ -1065,7 +1151,7 @@ PointView : View {
 
 	// arrayOfColors can be a Color, Array of Colors.
 	// If (arrayOfColors.size != points.size), points will wrap through the
-	// color array, or be grouped into each color if colorGroups_ has been set
+	// color array
 	pointColors_ { |arrayOfColors|
 		if (arrayOfColors.isKindOf(Color)) {
 			arrayOfColors = [arrayOfColors];
@@ -1084,7 +1170,7 @@ PointView : View {
 		colsByHue = false;
 	}
 
-	hueRange_ { |hueLow = 0, hueHigh = 0.999, sat = 0.9, val = 1, alpha = 0.8, scramble = false|
+	pointHueRange_ { |hueLow = 0, hueHigh = 0.999, sat = 0.9, val = 1, alpha = 0.8, scramble = false|
 		var size = points.size;
 
 		prPntDrawCols = size.collect{ |i|
@@ -1098,24 +1184,59 @@ PointView : View {
 			huesScrambled = scramble;
 		};
 		colsByHue = true;
+		this.refresh;
+	}
+
+	groupColors_ { |arrayOfColors, defaultColor = (Color.gray.alpha_(0.3))|
+
+		groupColors = arrayOfColors.isKindOf(Color).if({ [arrayOfColors] }, { arrayOfColors.flat });
+		defaultGroupColor = defaultColor;
+
+		// initialize colorGroups if not already
+		colorGroups ?? {
+			var npnts, ngrps, cnt = 0;
+
+			npnts = this.points.size;
+			ngrps = arrayOfColors.size;
+
+			colorGroups = Array.fill(ngrps, { Array.new } );
+
+			// form color groups of the correct rank
+			npnts.do{ |i|
+				colorGroups[i % ngrps] = colorGroups[i % ngrps].add(i);
+			};
+
+			// reset indices so they're grouped in ascending order
+			colorGroups.do{ |arr|
+				arr.do{ |elem, i|
+					arr[i] = cnt;
+					cnt = cnt + 1;
+				}
+			};
+
+			this.colorGroups_(colorGroups);
+		}
 	}
 
 	// Set groups of point indices which belong to each color in
 	// pointColors array.
 	// defaultColor is a Color for points not included in arraysOfIndices
-	colorGroups_ { |arraysOfIndices, defaultColor = (Color.black)|
+	colorGroups_ { |arraysOfIndices|
 
-		prPntDrawCols = points.size.collect{defaultColor};
+		prPntDrawCols = points.size.collect{ defaultGroupColor };
 
 		if (arraysOfIndices.rank == 1) {
 			arraysOfIndices = [arraysOfIndices];
 		};
 
-		arraysOfIndices.do{ |group, grpIdx|
+		colorGroups = arraysOfIndices;
+
+		colorGroups.do{ |group, grpIdx|
 			group.do{ |pntIdx|
-				prPntDrawCols[pntIdx] = pointColors.wrapAt(grpIdx)
+				prPntDrawCols[pntIdx] = groupColors.wrapAt(grpIdx)
 			}
 		};
+
 		colsByHue = false;
 		this.refresh;
 	}
@@ -1149,7 +1270,7 @@ PointView : View {
 			sat = prPntDrawCols.first.sat;
 			val = prPntDrawCols.first.val;
 			alpha = prPntDrawCols.first.alpha;
-			this.hueRange_(hues.minItem, hues.maxItem, sat, val, alpha, huesScrambled);
+			this.pointHueRange_(hues.minItem, hues.maxItem, sat, val, alpha, huesScrambled);
 		};
 
 		prPntDrawCols ?? {
@@ -1163,42 +1284,45 @@ PointView : View {
 		this.changed(\units, radiansOrDegrees)
 	}
 
-
-	// TODO:
 	initInteractions {
-		// userView.mouseMoveAction_({
-		// 	|v,x,y,modifiers|
-		// 	mouseMovePnt = x@y;
-		// 	// mouseMoveAction.(v,x,y,modifiers)
-		// });
-		//
-		// userView.mouseDownAction_({
-		// 	|v,x,y, modifiers, buttonNumber, clickCount|
-		// 	mouseDownPnt = x@y;
-		// 	// mouseDownAction.(v,x,y, modifiers, buttonNumber, clickCount)
-		// });
-		//
-		// userView.mouseUpAction_({
-		// 	|v,x,y, modifiers|
-		// 	mouseUpPnt = x@y;
-		// 	// mouseUpAction.(v,x,y,modifiers)
-		// });
-		//
-		// userView.mouseWheelAction_({
-		// 	|v, x, y, modifiers, xDelta, yDelta|
-		// 	// this.stepByScroll(v, x, y, modifiers, xDelta, yDelta);
-		// });
-		//
-		// // NOTE: if overwriting this function, include a call to
-		// // this.stepByArrowKey(key) to retain key inc/decrement capability
-		// userView.keyDownAction_ ({
-		// 	|view, char, modifiers, unicode, keycode, key|
-		// 	// this.stepByArrowKey(key);
-		// });
+		var mouseDownPnt, mouseUpPnt, mouseMovePnt;
+
+		userView.mouseMoveAction_({ |v,x,y,modifiers|
+			var deltaX, deltaY;
+
+			extrinsicRotation = true;
+			deltaX = x - mouseDownPnt.x;
+			deltaY = y - mouseDownPnt.y;
+			exRot = prevExRot + (deltaX * rotPxStep);
+			exTum = prevExTum + (deltaY * rotPxStep);
+			mouseMovePnt = x@y;
+
+			this.refresh;
+		});
+
+		userView.mouseDownAction_({ |v,x,y, modifiers, buttonNumber, clickCount|
+			mouseDownPnt = x@y;
+			mouseMovePnt = x@y;
+		});
+
+		userView.mouseUpAction_({ |v,x,y, modifiers|
+			mouseUpPnt = x@y;
+			prevExRot = exRot;
+			prevExTum = exTum;
+		});
 	}
 
 	refresh {
 		userView.animate.not.if{ userView.refresh };
+	}
+
+	// reset rotations
+	reset {
+		extrinsicRotation = false; // flag if mouse interaction requires additional extrinsic rotation
+		exRot = exTum = prevExRot = prevExTum = 0;
+		this.rotate_(-45.degrad).tilt_(0).tumble_(0);
+		this.allOsc_(false).allCyc_(false);
+		this.refresh;
 	}
 
 	update { |who, what ... args|
@@ -1238,7 +1362,7 @@ PointView : View {
 Usage
 
 (
-t = TDesign(8).visualize(bounds: [200,200, 1200,700].asRect, showConnections: false)
+t = TDesign(59).visualize(bounds: [200,200, 1200,700].asRect, showConnections: false)
 )
 
 

@@ -1,0 +1,56 @@
+TITLE:: TDesign
+summary:: A subclass of SphericalDesign, encapsulating a set of points which represent a spherical design, allowing for searching, basic transformations and visualization of the design.
+categories:: Math
+related:: Classes/SphericalDesign, Classes/Cartesian, Classes/Spherical, Classes/TDesignLib
+
+DESCRIPTION::
+
+definitionlist::
+## Spherical emphasis::t::-designs
+||A finite subset emphasis::X:: on emphasis::S^(n−1):: is called a spherical
+emphasis::t::-design on emphasis::S^(n−1)::, if for any polynomial
+code::f(x) = f(x1, x2, . . . , xn):: of degree at most emphasis::t::, the
+value of the integral of code::f(x):: on emphasis::S^(n−1):: (divided by the
+volume of emphasis::S^(n−1)::) is just the average value of code::f(x):: on the
+finite set emphasis::X::. As is obvious from the definition, a spherical
+emphasis::t::-design is better if emphasis::t:: is larger, and usually a
+spherical emphasis::t::-design emphasis::X:: is better if the cardinality
+|emphasis::X::| is smaller. footnote::Bannai, E., Bannai, E. A survey on spherical designs and
+algebraic combinatorics on spheres. European Journal of Combinatorics,
+Volume 30, Issue 6, August 2009, Pages 1392-1425.
+::
+::
+
+This is a subclass of link::Classes/SphericalDesign::, used to load a
+design of a specific number of points and fundamental parameter emphasis::t::.
+
+NOTE::
+The coordinate system follows that of link::Classes/Spherical:: and
+link::Classes/Polar::. The +X axis points forward, +Y points left, +Z points
+upward.
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+
+ARGUMENT:: numPoints
+The number of points you'd like in your design. If multiple matches in the
+design library are found, the code::t:: argument must be specified to
+disambiguate, otherwise an error will be thrown.
+
+ARGUMENT:: t
+The desired emphasis::t:: parameter. Can be code::nil:: but the method will
+throw an error if multiple design matches are found for code::numPoints::.
+(Some valid designs include the same number of points but different values of
+emphasis::t::.)
+
+ARGUMENT:: dim
+The emphasis::t::-design's dimensions. Only dimension 3 is supported.
+
+INSTANCEMETHODS::
+
+METHOD:: t
+Return the design's emphasis::t:: parameter.
+
+PRIVATE:: -init
