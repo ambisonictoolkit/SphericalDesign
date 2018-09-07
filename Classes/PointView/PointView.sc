@@ -21,6 +21,8 @@ PointView : View {
 	var renderDistanceSize = true;
 	var prevColors, highlighted = false;
 	var connectionColor, indicesColor;
+	var connStrokeWidthNear = 3, connStrokeWidthFar;
+
 	var <groupColors, <colorGroups, defaultGroupColor;
 
 	// movement
@@ -73,6 +75,7 @@ PointView : View {
 		indicesColor = Color.black;
 		groupColors = Color.red;
 		defaultGroupColor = Color.gray.alpha_(0.3);
+		connStrokeWidthFar = connStrokeWidthNear * pointDistScale;
 
 		userView = UserView(this, this.bounds.origin_(0@0))
 		.resize_(5)
@@ -684,7 +687,7 @@ PointView : View {
 
 					Pen.strokeColor_(axisColors[i]);
 					Pen.moveTo(axPnts_xf[0]);
-					Pen.width_(lineDpth.linlin(-1.0,1.0, 4, 0.5));
+					Pen.width_(lineDpth.linlin(-1.0,1.0, connStrokeWidthNear, connStrokeWidthFar));
 					Pen.lineTo(axPnt);
 					Pen.stroke;
 
@@ -721,8 +724,7 @@ PointView : View {
 
 					set.rotate(-1).do{ |idx, j|
 						// change line width with depth
-						// Pen.width_(pDpths[j].linlin(-1.0,1.0, 3.5, 0.5));
-						Pen.width_(pDpths[j].lincurve(-1.0,1.0, 3.5, 0.5, -3.5));
+						Pen.width_(pDpths[j].lincurve(-1.0,1.0, connStrokeWidthNear, connStrokeWidthFar, -3.5));
 						Pen.lineTo(pnts_xf[idx]);
 						Pen.stroke;
 						Pen.moveTo(pnts_xf[idx]);
@@ -1257,6 +1259,14 @@ PointView : View {
 		this.refresh;
 	}
 
+	connectionStrokeWidth_ { |px|
+		connStrokeWidthNear = px;
+		connStrokeWidthFar = px * pointDistScale;
+		this.refresh;
+	}
+
+	connectionStrokeWidth { ^connStrokeWidthNear }
+
 	indicesColor_ { |aColor|
 		indicesColor = aColor;
 		this.refresh;
@@ -1362,7 +1372,7 @@ PointView : View {
 Usage
 
 (
-t = TDesign(59).visualize(bounds: [200,200, 1200,700].asRect, showConnections: false)
+t = TDesign(15).visualize(bounds: [200,200, 1200,700].asRect, showConnections: true)
 )
 
 

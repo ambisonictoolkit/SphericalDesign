@@ -57,7 +57,7 @@ converted to link::Classes/Cartesian:: points internally.
 METHOD:: connections
 Set an link::Classes/Array:: of link::Classes/Array::s, each listing the indices of
 points which should be connected by lines. If
-code::showConnections:: is code::true::, the connecting lines will immediately
+code::update:: is code::true::, the connecting lines will immediately
 be shown. Connections can be toggled on and off with link::#-showConnections::.
 Default connections are set to sequential indices
 code::[[0, 1, ... numPoints-1]]::.
@@ -185,7 +185,11 @@ A link::Classes/Boolean:: toggling the connection lines on and off.
 link::#-connections:: must be set.
 
 METHOD:: connectionColor
-Set the link::Classes/Color:: of the lines showing the link::#-connections::.
+The link::Classes/Color:: of the lines showing the link::#-connections::.
+
+METHOD:: connectionStrokeWidth
+The stroke width of connection lines in pixels. The farthest connection line
+widths will be scaled by link::#-pointDistScale::.
 
 METHOD:: showAxes
 A link::Classes/Boolean:: flag stating whether the display the axes at the origin.
