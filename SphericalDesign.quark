@@ -1,0 +1,15 @@
+(
+          name: "SphericalDesign",
+       summary: "A collection of classes to import, manipulate and visualize spherical and other point-based designs.",
+        author: "Michael McCrea, Dan Peterson",
+     copyright: "Ambisonic Toolkit Community, Joseph Anderson, Michael McCrea 2018",
+       license: "GPL",
+       version: "0.9.0",
+        schelp: "SphericalDesign",
+           url: "https://github.com/ambisonictoolkit/SphericalDesign",
+  dependencies: [
+				  "https://github.com/ambisonictoolkit/PointView",
+                ],
+  organization: "ATK Community: http://www.ambisonictoolkit.net",
+         since: "2018"
+)
