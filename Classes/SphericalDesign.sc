@@ -81,8 +81,18 @@ SphericalDesign {
 
 	// modify the design by performing method on all points (Cartesians)
 	// leaves triplets unchanged
-	performOnDesign { |method ...args|
-		this.points_(points.collect(_.perform(method, *args)));
+	performOnDesign { |methodOrFunc ... args|
+		case
+		{ methodOrFunc.isKindOf(Symbol) } {
+			this.points_(
+				points.collect(_.perform(methodOrFunc, *args))
+			)
+		}
+		{ methodOrFunc.isKindOf(Function) } {
+			this.points_(
+				points.collect({ |pnt, i| methodOrFunc.value(pnt, i, *args) })
+			)
+		}
 	}
 
 	numPoints { ^points.size }
@@ -90,7 +100,7 @@ SphericalDesign {
 
 	// reset points to position when first created, e.g. after applying rotation
 	reset {
-		this.points_(initPoints);
+		this.points_(initPoints.deepCopy);
 		this.resetTriplets;
 	}
 
@@ -195,7 +205,7 @@ SphericalDesign {
 		this.changed(\triplets, false); // false: triplets have not been set
 	}
 
-	prSaveInitState { initPoints = points }
+	captureState { initPoints = points.deepCopy }
 }
 
 
@@ -243,7 +253,7 @@ TDesign : SphericalDesign {
 			Cartesian(*xyz)
 		};
 
-		this.prSaveInitState;
+		this.captureState;
 	}
 }
 
