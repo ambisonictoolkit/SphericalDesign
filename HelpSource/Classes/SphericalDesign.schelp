@@ -101,9 +101,13 @@ transformations before re-calculating the triplets (which can take some time for
 large designs).
 
 METHOD:: performOnDesign
-Perform code::method:: with code::args:: on each of the
-link::Classes/Cartesian:: points in the design. Therefore
-link::Classes/Cartesian:: must respond to code::method::.
+If code::methodOrFunc:: is a link::Classes/Symbol::, this method behaves as
+link::Classes/Object#-perform::, iterating over each
+link::Classes/Cartesian:: point.
+
+If code::methodOrFunc:: is a link::Classes/Function::, this method evaluates
+the function for each point, passing in as arguments: the
+link::Classes/Cartesian:: point, the point index, and code::*args::.
 
 DISCUSSION:: If the method you perform on the design invalidates the design's
 link::#-triplets:: (assuming you've calculated and are using them), you'll want
@@ -111,8 +115,9 @@ to either link::#-resetTriplets:: beforehand to clear them and/or call
 link::#-calcTriplets:: after performing the code::method::.
 
 METHOD:: reset
-Reset the points to their original positions before any transformations were
-performed.
+Reset the points to their the positions when link::#-captureState:: was called.
+link::Classes/TDesign::, for example, captures the initial state of the points
+on creation.
 
 
 SUBSECTION::Sorting and selecting
@@ -183,15 +188,11 @@ calculation of the triangular mesh across the points.
 Returns code::nil:: if triplets haven't yet been calculated.
 See link::#-calcTriplets:: for more information.
 
+METHOD:: view
+Return the Link::Classes/PointView:: created after calling link::#-visualize::.
 
 
-SUBSECTION::Miscellaneous
-
-METHOD:: resetTriplets
-Set link::#-triplets:: to code::nil:: and clear the internal table of vector
-angles between points. If you're working with large designs and transforming,
-etc., this may be useful to manually reset these internal variables.
-
+SUBSECTION::Other
 
 METHOD:: visualize
 Create a link::Classes/PointView:: displaying the design.
@@ -210,11 +211,6 @@ link::#-triplets::, so if code::showConnections:: is code::true:: (default),
 they will be calculated. This calculation can take a long time. See the
 teletype::WARNING:: in link::#-calcTriplets::.
 
-
-METHOD:: view
-Return the Link::Classes/PointView:: created after calling link::#-visualize::.
-
-
 METHOD:: calcTriplets
 Calculate the triangular mesh across the points and populate
 link::#-triplets:: with indices of the triangles. Similar to the
@@ -228,10 +224,114 @@ WARNING:: This calculation can take a long time for
 strong::numPoints:: above 30 or so. 50 points: ~5 sec, 70 points: ~11 sec, 120
 points: ~70 seconds, ...::
 
+METHOD:: resetTriplets
+Set link::#-triplets:: to code::nil:: and clear the internal table of vector
+angles between points. If you're working with large designs and transforming,
+etc., this may be useful to manually reset these internal variables.
+
+METHOD:: captureState
+Capture the state to which you'd like to return when calling link::#-reset::.
+link::Classes/TDesign::, for example, captures the initial state of the points
+on creation.
+
 EXAMPLES::
 
 code::
-// Coming soon...
+
+/*
+Visualize the t-design to observe the effect of the methods.
+showConnections = true will calculate the triangular mesh
+(triplets) to visualize the convex hull.
+*/
+
+t = TDesign(13).visualize(showConnections: true);
+
+/*
+Perform rotations on the design.
+Notice the design changes, not the view (the axes stay in place).
+*/
+
+t.rotate(-45.degrad);
+t.tilt(45.degrad);
+// ...etc.
+
+/*
+Mirror all points through the origin.
+This invalidates the triplets, so recalcTriplets
+is required to re-compute them.
+*/
+
+t.mirrorO(recalcTriplets: true);
+
+/*
+Perform arbitrary actions on the points in the design:
+*/
+
+// with a method Symbol
+t.performOnDesign(\rotate, 30.degrad)
+
+// or a Function
+(
+t.performOnDesign({ |cartesian, idx ... args|
+	args.postln;
+	// be sure to return a cartesian arg
+	cartesian.y = cartesian.y.linlin(-1,1, -0.2, 1);
+}, 1, 2, 3, 4)
+)
+// Note the above transform invalidates the spherical design as such!
+
+// Reset to the original state.
+t.reset;
+
+/*
+Directions returns an array with
+[azimuth, elevation] for every point.
+*/
+t.directions;
+
+// The indices of the triplets forming the triangular mesh.
+t.triplets;
+// >> nil, t was reset above.
+// ...so we need to recalculate them:
+/*
+Caution: designs with large numbers of
+points (over 50 or so) can take a long
+time to calculate the triplets!
+The view will automatically show the triplets.
+*/
+t.calcTriplets;
+
+/*
+Or you can explicitly tell the view to display the
+connections between triplets.
+*/
+
+t.view.connectTriplets_(t.triplets);
+
+
+/* Filter and select. */
+
+// point nearest to direction
+t.nearestPoint(pi/3, 0);
+// index of the point nearest to direction
+t.nearestIndex(pi/3, 0);
+
+// points within a spherical cap
+t.pointsWithin(0, pi/2, 2pi/3);
+
+// points within a spherical cap, sorted nearest to farthest
+t.nearestPointsWithin(0, pi/2, 2pi/3);
+
+// indices of points within a spherical cap
+t.indicesWithin(0, pi/2, 2pi/3);
+
+// visualize them
+t.view.highlightPoints(t.indicesWithin(0, pi/2, 2pi/3), Color.yellow)
+
+// vector angles between each point and a direction
+t.vectorAngles(25.degrad, -40.degrad);
+
+t.view.close;
 ::
 
 SECTION::Authors
@@ -240,4 +340,4 @@ Authors:
 M. McCrea, D. Peterson
 2018
 
-PRIVATE:: prMirror, initTDesign, vec_angle, vec_length, minSideLength, prSaveInitState, unq_cross_prod, vec_prod, lines_intersect, any_ls_inside_triplet, vol_p_side_lgth
+PRIVATE:: prMirror, initTDesign, vec_angle, vec_length, minSideLength, unq_cross_prod, vec_prod, lines_intersect, any_ls_inside_triplet, vol_p_side_lgth

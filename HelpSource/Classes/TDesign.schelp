@@ -53,4 +53,7 @@ INSTANCEMETHODS::
 METHOD:: t
 Return the design's emphasis::t:: parameter.
 
+SECTION:: EXAMPLES
+See link::Classes/SphericalDesign#examples::.
+
 PRIVATE:: -init
