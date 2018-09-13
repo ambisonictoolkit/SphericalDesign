@@ -192,7 +192,7 @@ Unversity of California at Berkeley
 				}
 			);
 			test
-		});
+		}).asInt; // cast indices to ints
 
 		this.changed(\triplets, true); // true: triplets have been set
 	}
