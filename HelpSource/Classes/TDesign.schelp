@@ -30,6 +30,19 @@ link::Classes/Polar::. The +X axis points forward, +Y points left, +Z points
 upward.
 ::
 
+DEFINITIONLIST::
+##Attribution:
+||McLaren's Improved Snub Cube and Other New Spherical Designs in Three
+Dimensions, R. H. Hardin and N. J. A. Sloane, Discrete and Computational
+Geometry, 15 (1996), pp. 429-441.
+::
+
+The T-Designs found here are from the work of Hardin and Sloane. These and other
+designs can be downloaded directly from their site:
+http://neilsloane.com/sphdesigns/
+
+If you use any of these designs, please acknowledge this source.
+
 CLASSMETHODS::
 
 METHOD:: new

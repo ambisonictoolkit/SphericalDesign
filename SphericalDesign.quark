@@ -9,6 +9,7 @@
            url: "https://github.com/ambisonictoolkit/SphericalDesign",
   dependencies: [
 				  "https://github.com/ambisonictoolkit/PointView",
+                  "MathLib"
                 ],
   organization: "ATK Community: http://www.ambisonictoolkit.net",
          since: "2018"
