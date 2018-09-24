@@ -5,8 +5,8 @@
 	(VBAPSpeakerArray) of Ville Pukki's VBAP library in PureData.
 	The copied methods pertain to forming a triangulation of points
 	which forms a mesh grid suitable for use with VBAP and used here
-    to visualizate a point mesh. A future implementation could
-    perform a convex hull operation if that's more efficient.
+	to visualizate a point mesh. A future implementation could
+	perform a convex hull operation if that's more efficient.
 	- M. McCrea, DXARTS, University of Washington, mtm5[at]uw.edu
 
 
