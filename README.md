@@ -53,7 +53,7 @@ Credits
 The method of formulating a triangulation of points, found in `-calcTriplets`
 and its associated methods were copied, with some modification, from Scott
 Wilson's port (`VBAPSpeakerArray`) of Ville Pukki's VBAP library in PureData.
-See [extSphericalDesign.sc](https://github.com/ambisonictoolkit/SphericalDesign/blob/master/Classes/extSphericalDesign.sc).
+See [extSphericalDesign.sc](Classes/extSphericalDesign.sc?raw=true).
 &nbsp;
 
 The T-Designs found here are from the work of Hardin and Sloane.
