@@ -265,7 +265,8 @@ TDesignLib {
 	classvar <defaultPath;
 
 	*initClass {
-		defaultPath = PathName(thisMethod.filenameSymbol.asString).parentPath.asPathName.parentPath.absolutePath +/+ "Designs/t-designs/sloane/";
+		defaultPath = PathName(this.filenameSymbol.asString).parentPath;
+		defaultPath = PathName(defaultPath).parentPath +/+ "Designs/t-designs/sloane/";
 	}
 
 	*initLib {
