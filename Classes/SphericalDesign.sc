@@ -195,7 +195,7 @@ SphericalDesign {
 		view.onClose_({ view.onClose.addFunc({ this.removeDependant(view) }) });
 
 		if (showConnections and: { triplets.notNil }) {
-			view.connections_(triplets);
+			view.connectTriplets_(triplets);
 		};
 	}
 
