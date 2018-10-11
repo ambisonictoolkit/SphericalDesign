@@ -62,7 +62,7 @@ their site:  http://neilsloane.com/sphdesigns/. If you use any of these designs,
 please acknowledge this source.
 &nbsp;
 
-The development of the Hilbert Transform Library for SuperCollider3 is supported
+The development of the Spherical Design Library for SuperCollider3 is supported
 by
 [The University of Washington's Center for Digital Arts and Experimental Media (DXARTS)](https://dxarts.washington.edu/).
 &nbsp;
