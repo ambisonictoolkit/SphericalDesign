@@ -157,7 +157,6 @@ SphericalDesign {
 	// like indicesWithin, but indices are sorted from nearest to farthest point
 	nearestIndicesWithin { |theta = 0, phi = 0, spread = 0.5pi, inclusive = true|
 		var lessThan, thresh, vecAngles, sortIndices, ret;
-		var farthestIndex = 0;
 
 		lessThan = if (inclusive) { '<=' } { '<' };
 		thresh = spread.half;
@@ -167,10 +166,13 @@ SphericalDesign {
 
 		ret = [];
 
-		while ({ vecAngles[sortIndices[farthestIndex]].perform(lessThan, thresh) }, {
-			ret = ret.add(sortIndices[farthestIndex]);
-			farthestIndex = farthestIndex + 1;
-		});
+		sortIndices.do{ |sidx|
+			if (vecAngles[sidx].perform(lessThan, thresh)) {
+				ret = ret.add(sidx);
+			} {
+				^ret
+			};
+		}
 
 		^ret
 	}
