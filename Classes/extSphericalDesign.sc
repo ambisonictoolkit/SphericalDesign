@@ -71,9 +71,10 @@ Unversity of California at Berkeley
 			);
 			sec = if (numPnts < 181) { pntEnv[numPnts].round(0.1) };
 
-			postf(
+			(
 				"Calculating point triangulation...\n"
-				"This could take roughly % %\n",
+				"This could take roughly % %\n"
+			).postf(
 				*if (sec.notNil) {
 					if (sec < 91) {
 						[sec, "sec"]
@@ -168,11 +169,11 @@ Unversity of California at Berkeley
 							if (this.lines_intersect(fst_ls, sec_ls, j, k), {
 								connections[j][k] = 0;
 								connections[k][j] = 0;
-							});
-						};
-					});
-				};
-			});
+							})
+						}
+					})
+				}
+			})
 		};
 
 		/* remove triangles which had crossing sides
@@ -192,7 +193,7 @@ Unversity of California at Berkeley
 				}
 			);
 			test
-		}).asInt; // cast indices to ints
+		}).asInteger; // cast indices to ints
 
 		this.changed(\triplets, true); // true: triplets have been set
 	}
@@ -201,7 +202,7 @@ Unversity of California at Berkeley
 		/* angle between two loudspeakers */
 		var inner;
 		inner = (
-			(v1.x*v2.x) + (v1.y*v2.y) + (v1.z*v2.z)
+			(v1.x * v2.x) + (v1.y * v2.y) + (v1.z * v2.z)
 		) / (
 			this.vec_length(v1) * this.vec_length(v2)
 		);
@@ -217,7 +218,7 @@ Unversity of California at Berkeley
 
 	vec_prod {|v1, v2|
 		/* vector dot product */
-		^((v1.x*v2.x) + (v1.y*v2.y) + (v1.z*v2.z));
+		^((v1.x * v2.x) + (v1.y * v2.y) + (v1.z * v2.z));
 	}
 
 
@@ -306,35 +307,35 @@ Unversity of California at Berkeley
 		^if (lgth > 0.00001) { (volper / lgth) } { 0.0 };
 	}
 
+	/* returns true if there is loudspeaker(s) inside given ls triplet */
 	any_ls_inside_triplet { |a, b, c|
-		/* returns true if there is loudspeaker(s) inside given ls triplet */
-		var invdet;
-		var lp1, lp2, lp3;
-		var invmx;
-		var tmp;
+		var invdet, invdetneg, tmp;
 		var any_ls_inside, this_inside;
 
-		lp1 =  points[a];
-		lp2 =  points[b];
-		lp3 =  points[c];
-
-		invmx = Array.newClear(9);
+		var invmx = Array.newClear(9);
+		var lp1 =  points[a];
+		var lp2 =  points[b];
+		var lp3 =  points[c];
+		var lp2ylp3z_m_lp2zlp3y = (lp2.y * lp3.z) - (lp2.z * lp3.y);
+		var lp2xlp3z_m_lp2zlp3x = (lp2.x * lp3.z) - (lp2.z * lp3.x);
+		var lp2xlp3y_m_lp2ylp3x = (lp2.x * lp3.y) - (lp2.y * lp3.x);
 
 		/* matrix inversion */
 		invdet = 1.0 / (
-			lp1.x * ((lp2.y * lp3.z) - (lp2.z * lp3.y))
-			- (lp1.y * ((lp2.x * lp3.z) - (lp2.z * lp3.x)))
-			+ (lp1.z * ((lp2.x * lp3.y) - (lp2.y * lp3.x)))
+			lp1.x * lp2ylp3z_m_lp2zlp3y
+			- (lp1.y * lp2xlp3z_m_lp2zlp3x)
+			+ (lp1.z * lp2xlp3y_m_lp2ylp3x)
 		);
 
-		invmx[0] = ((lp2.y * lp3.z) - (lp2.z * lp3.y)) * invdet;
-		invmx[3] = ((lp1.y * lp3.z) - (lp1.z * lp3.y)) * invdet.neg;
+		invdetneg = invdet.neg;
+		invmx[0] = lp2ylp3z_m_lp2zlp3y * invdet;
+		invmx[3] = ((lp1.y * lp3.z) - (lp1.z * lp3.y)) * invdetneg;
 		invmx[6] = ((lp1.y * lp2.z) - (lp1.z * lp2.y)) * invdet;
-		invmx[1] = ((lp2.x * lp3.z) - (lp2.z * lp3.x)) * invdet.neg;
+		invmx[1] = lp2xlp3z_m_lp2zlp3x * invdet.neg;
 		invmx[4] = ((lp1.x * lp3.z) - (lp1.z * lp3.x)) * invdet;
-		invmx[7] = ((lp1.x * lp2.z) - (lp1.z * lp2.x)) * invdet.neg;
-		invmx[2] = ((lp2.x * lp3.y) - (lp2.y * lp3.x)) * invdet;
-		invmx[5] = ((lp1.x * lp3.y) - (lp1.y * lp3.x)) * invdet.neg;
+		invmx[7] = ((lp1.x * lp2.z) - (lp1.z * lp2.x)) * invdetneg;
+		invmx[2] = lp2xlp3y_m_lp2ylp3x * invdet;
+		invmx[5] = ((lp1.x * lp3.y) - (lp1.y * lp3.x)) * invdetneg;
 		invmx[8] = ((lp1.x * lp2.y) - (lp1.y * lp2.x)) * invdet;
 
 		any_ls_inside = false;
@@ -345,12 +346,12 @@ Unversity of California at Berkeley
 			}) {
 				this_inside = true;
 				for (0, 2, { |j|
-					tmp = points[i].x * invmx[0 + (j*3)];
-					tmp = points[i].y * invmx[1 + (j*3)] + tmp;
-					tmp = points[i].z * invmx[2 + (j*3)] + tmp;
+					tmp = points[i].x * invmx[0 + (j * 3)];
+					tmp = points[i].y * invmx[1 + (j * 3)] + tmp;
+					tmp = points[i].z * invmx[2 + (j * 3)] + tmp;
 					if (tmp < -0.001) { this_inside = false };
 				});
-				if (this_inside) {any_ls_inside = true};
+				if (this_inside) { any_ls_inside = true };
 			};
 		});
 
