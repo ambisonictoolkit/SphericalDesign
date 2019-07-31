@@ -25,7 +25,7 @@
 //
 //-------------------------------------------------------------------------
 // This library includes an extension, found in extSphDesign.sc, containing
-// methods which ar a modification of Scott Wilson's SC port of Ville
+// methods which are a modification of Scott Wilson's SC port of Ville
 // Pukki's VBAP in PD. Wilson's comments and Pulkki's copyright statement
 // can be found in that file.
 //-------------------------------------------------------------------------
@@ -33,8 +33,8 @@
 //-------------------------------------------------------------------------
 // The T-Designs found here are from the work of:
 //    McLaren's Improved Snub Cube and Other New Spherical Designs in Three
-//    Dimensions, R. H. Hardin and N. J. A. Sloane, Discrete and Computational
-//    Geometry, 15 (1996), pp. 429-441.
+//    Dimensions, R. H. Hardin and N. J. A. Sloane, Discrete and
+//    Computational Geometry, 15 (1996), pp. 429-441.
 // and are downloaded directly from their site:
 //    http://neilsloane.com/sphdesigns/
 //-------------------------------------------------------------------------
@@ -188,13 +188,20 @@ SphericalDesign {
 	visualize { |parent, bounds, showConnections = true|
 		if (showConnections and: { triplets.isNil }) {
 			"\nTriangulating points to display connections...".postln;
-			try { this.calcTriplets } { triplets = nil; "Could not calculate triplets".warn };
+			try {
+				this.calcTriplets
+			} {
+				triplets = nil;
+				"Could not calculate triplets".warn
+			};
 			"...done".postln;
 		};
 
 		view = PointView(parent, bounds).points_(points).front;
 		this.addDependant(view);
-		view.onClose_({ view.onClose.addFunc({ this.removeDependant(view) }) });
+		view.onClose_({
+			view.onClose.addFunc({ this.removeDependant(view) })
+		});
 
 		if (showConnections and: { triplets.notNil }) {
 			view.connectTriplets_(triplets);
@@ -207,7 +214,9 @@ SphericalDesign {
 		this.changed(\triplets, false); // false: triplets have not been set
 	}
 
-	captureState { initPoints = points.deepCopy }
+	captureState {
+		initPoints = points.deepCopy
+	}
 }
 
 
@@ -227,8 +236,10 @@ TDesign : SphericalDesign {
 		case
 		{ matches.size == 0 } {
 			Error(
-				format("[TDesign:-init] No t-designs found in TDesignLib.lib matching: "
-				"numPoints %, t %, dim %", argNp, argT, argDim)
+				(
+					"[TDesign:-init] No t-designs found in TDesignLib.lib matching: "
+					"numPoints %, t %, dim %"
+				).format(argNp, argT, argDim)
 			).throw;
 		}
 		{ matches.size > 1 } {
@@ -238,7 +249,7 @@ TDesign : SphericalDesign {
 				"and 't' to return one result. 't' of available designs:"
 			);
 			e.errorString.postln;
-			matches.do({ |design| postf("t: %\n", design[\t]) });
+			matches.do({ |design| "t: %\n".postf(design[\t]) });
 			e.throw;
 		};
 
@@ -246,7 +257,7 @@ TDesign : SphericalDesign {
 
 		path = TDesignLib.path +/+ "des.%.%.%.txt".format(argDim, argNp, t);
 		if (File.exists(path).not) {
-			format("No t-design file found at %", path).throw
+			"No t-design file found at %".format(path).throw
 		};
 
 		data = FileReader.read(path);
@@ -280,12 +291,11 @@ TDesignLib {
 			pn = PathName(path);
 			if (pn.files.size == 0) {
 				Error(
-					format(
+					(
 						"[TDesignLib:*initLib] No t-design files found at %\n"
 						"Set TDesignLib.path to the location of your t-design files, \n"
-						"or use TDesignLib.downloadAll to download them if you don't yet have them.",
-						pn.fullPath
-					)
+						"or use TDesignLib.downloadAll to download them if you don't yet have them."
+					).format(pn.fullPath)
 				).throw;
 			}
 		} {
@@ -295,7 +305,7 @@ TDesignLib {
 		lib = List();
 
 		pn.filesDo({ |f|
-			#dim, nPnts, t = f.fileNameWithoutExtension.drop(4).split($.).asInt;
+			#dim, nPnts, t = f.fileNameWithoutExtension.drop(4).split($.).asInteger;
 			lib.add(
 				Dictionary.newFrom([
 					\dim, dim, \numPoints, nPnts, \t, t
@@ -316,21 +326,22 @@ TDesignLib {
 			if (makeDir) {
 				File.mkdir(p)
 			} {
-				format(
+				(
 					"[TDesignLib:*downloadAll] Save path doesn't exist. "
-					"Set makeDir=true to create it. [%]",
-					path
-				).throw
+					"Set makeDir=true to create it. [%]"
+				).format(path).throw
 			}
 		};
 
 		// parse filenames from t-design repository and iteratively download each
-		postf("Downloading t-designs to %\nPlease wait ...", p);
+		"Downloading t-designs to %\nPlease wait ...".postf(p);
+
 		unixCmd(
-			format(
+			(
 				"curl -s http://neilsloane.com/sphdesigns/dim3/ | "
 				"grep href | grep \".txt\" | sed 's/.*href=\"//' | sed 's/\".*//' | "
-				"while read -r fname; do curl -o %$fname -f http://neilsloane.com/sphdesigns/dim3/$fname; done",
+				"while read -r fname; do curl -o %$fname -f http://neilsloane.com/sphdesigns/dim3/$fname; done"
+			).format(
 				p.asCompileString
 			),
 			action: { |...args|
@@ -366,17 +377,22 @@ TDesignLib {
 
 				// report what's available online
 				res = unixCmdGetStdOut(
-					format(
+					(
 						"curl -s http://neilsloane.com/sphdesigns/dim3/ | "
-						"grep href | grep \".txt\" | sed 's/.*href=\"//' | sed 's/\".*//'",
+						"grep href | grep \".txt\" | sed 's/.*href=\"//' | sed 's/\".*//'"
+					).format(
 						this.path.asCompileString
 					)
-				).split($\n).collect({ |me| me.drop(5).reverse.drop(4).reverse });
+				).split($\n).collect({ |me|
+					me.drop(5).reverse.drop(4).reverse
+				});
 
 			};
 		};
 
-		res.sortBy(\numPoints).do({ |d| postf("numPoints -> %, t -> %\n", d[\numPoints], d[\t]) });
+		res.sortBy(\numPoints).do({ |d|
+			"numPoints -> %, t -> %\n".postf(d[\numPoints], d[\t])
+		});
 	}
 
 	// return an Array of designs matching the criteria
