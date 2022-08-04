@@ -358,7 +358,7 @@ TDesignLib {
 
 	// post all designs, and if none found locally,
 	// retrieve available designs online
-	*availableDesigns {
+	*availableDesigns { |postResults = false|
 		var res;
 
 		// check locally for loaded designs
@@ -390,9 +390,15 @@ TDesignLib {
 			};
 		};
 
-		res.sortBy(\numPoints).do({ |d|
-			"numPoints -> %, t -> %\n".postf(d[\numPoints], d[\t])
-		});
+		res = res.sortBy(\numPoints);
+
+		if (postResults) {
+			res.do({ |d|
+				"numPoints -> %, t -> %\n".postf(d[\numPoints], d[\t])
+			});
+		};
+
+		^res;
 	}
 
 	// return an Array of designs matching the criteria
