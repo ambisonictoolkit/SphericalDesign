@@ -227,6 +227,10 @@ TDesign : SphericalDesign {
 		^super.new.init(numPoints, t, dim);
 	}
 
+	*availableDesigns { |postResults = false|
+		^TDesignLib.availableDesigns(postResults)
+	}
+
 	init { |argNp, argT, argDim|
 		var path, data, matches;
 

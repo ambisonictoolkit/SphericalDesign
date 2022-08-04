@@ -43,7 +43,9 @@ http://neilsloane.com/sphdesigns/
 
 If you use any of these designs, please acknowledge this source.
 
+
 CLASSMETHODS::
+
 
 METHOD:: new
 
@@ -61,7 +63,12 @@ emphasis::t::.)
 ARGUMENT:: dim
 The emphasis::t::-design's dimensions. Only dimension 3 is supported.
 
+
+COPYMETHOD:: TDesignLib *availableDesigns
+
+
 INSTANCEMETHODS::
+
 
 METHOD:: t
 Return the design's emphasis::t:: parameter.
