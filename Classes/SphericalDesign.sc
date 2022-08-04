@@ -244,7 +244,8 @@ TDesign : SphericalDesign {
 					"[TDesign:-init] No t-designs found in TDesignLib.lib matching: "
 					"numPoints %, t %, dim %"
 				).format(argNp, argT, argDim)
-			).throw;
+			).errorString.postln;
+			this.halt;
 		}
 		{ matches.size > 1 } {
 			var e;
@@ -254,7 +255,7 @@ TDesign : SphericalDesign {
 			);
 			e.errorString.postln;
 			matches.do({ |design| "t: %\n".postf(design[\t]) });
-			e.throw;
+			this.halt;
 		};
 
 		t = matches[0][\t];
@@ -300,10 +301,14 @@ TDesignLib {
 						"Set TDesignLib.path to the location of your t-design files, \n"
 						"or use TDesignLib.downloadAll to download them if you don't yet have them."
 					).format(pn.fullPath)
-				).throw;
+				).errorString.postln;
+				this.halt;
 			}
 		} {
-			Error("[TDesignLib:*initLib] No folder exists at path %".format(this.path)).throw;
+			Error(
+				"[TDesignLib:*initLib] No folder exists at path %".format(this.path)
+			).errorString.postln;
+			this.halt
 		};
 
 		lib = List();
