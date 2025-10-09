@@ -228,6 +228,7 @@ Unversity of California at Berkeley
 		var angle;
 		var dist_ij,dist_kl,dist_iv3,dist_jv3,dist_inv3,dist_jnv3;
 		var dist_kv3,dist_lv3,dist_knv3,dist_lnv3;
+		var eps = 1e-9;
 
 		v1 = this.unq_cross_prod(points[i], points[j]);
 		v2 = this.unq_cross_prod(points[k], points[l]);
@@ -251,26 +252,26 @@ Unversity of California at Berkeley
 
 		/* if one of loudspeakers is close to crossing point, don't do anything */
 		if (
-			(abs(dist_iv3) <= 0.01) or: {
-				(abs(dist_jv3) <= 0.01) or: {
-					(abs(dist_kv3) <= 0.01) or: {
-						(abs(dist_lv3) <= 0.01) or: {
-							(abs(dist_inv3) <= 0.01) or: {
-								(abs(dist_jnv3) <= 0.01) or: {
-									(abs(dist_knv3) <= 0.01) or: {
-										(abs(dist_lnv3) <= 0.01)
+			(abs(dist_iv3) <= eps) or: {
+				(abs(dist_jv3) <= eps) or: {
+					(abs(dist_kv3) <= eps) or: {
+						(abs(dist_lv3) <= eps) or: {
+							(abs(dist_inv3) <= eps) or: {
+								(abs(dist_jnv3) <= eps) or: {
+									(abs(dist_knv3) <= eps) or: {
+										(abs(dist_lnv3) <= eps)
 			}}}}}}}
 		) {^false};
 
 		/* if crossing point is on line between both loudspeakers return 1 */
 		if (
 			(
-				(abs(dist_ij - (dist_iv3 + dist_jv3)) <= 0.01 ) and: {
-					abs(dist_kl - (dist_kv3 + dist_lv3))  <= 0.01
+				(abs(dist_ij - (dist_iv3 + dist_jv3)) <= eps ) and: {
+					abs(dist_kl - (dist_kv3 + dist_lv3))  <= eps
 				}
 			) or: {
-				(abs(dist_ij - (dist_inv3 + dist_jnv3)) <= 0.01)  and: {
-					abs(dist_kl - (dist_knv3 + dist_lnv3)) <= 0.01
+				(abs(dist_ij - (dist_inv3 + dist_jnv3)) <= eps)  and: {
+					abs(dist_kl - (dist_knv3 + dist_lnv3)) <= eps
 				}
 			}
 		) { ^true } { ^false };
