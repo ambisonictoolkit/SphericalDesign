@@ -41,11 +41,64 @@
 
 
 SphericalDesign {
+	classvar availableDesigns;
+	classvar <>path;
+	classvar <defaultPath;
+	classvar <lib;   // Array of designs, stored as Dictionaries
+
+
 	var <points;     // points are Cartesians
 	var initPoints;
 	var <view;
 	var <triplets;   // delaunay triangulation triplets, see extSphericalDesign
 	var vecAngTable; // used by calcTriplets, see extSphericalDesign
+
+	*initClass {
+		defaultPath = PathName(this.filenameSymbol.asString).parentPath;
+		defaultPath = PathName(defaultPath).parentPath +/+ "Designs/";
+		path = defaultPath.standardizePath;
+	}
+
+	*initLib {
+		var pn, dim, nPnts, t;
+
+		if (File.exists(path)) {
+			pn = PathName(path);
+			if (pn.files.size == 0) {
+				Error(
+					(
+						"[SphericalDesign:*initLib] No design files found at %\n"
+						"Set SphericalDesign.path to the location of your design files\n"
+						"or reset path to SphericalDesign.defaultPath."
+					).format(pn.fullPath)
+				).errorString.postln;
+				this.halt;
+			}
+		} {
+			Error(
+				"[SphericalDesign:*initLib] No folder exists at path %".format(this.path)
+			).errorString.postln;
+			this.halt
+		};
+
+		lib = List();
+
+		pn.filesDo({ |f|
+			var fileParts, kind, nPnts, attributes;
+			#fileParts = f.fileNameWithoutExtension.drop(4).split($_);
+			kind = fileParts[0];
+			nPnts = fileParts[1];
+			// dispatch remaining args here according to the kind
+			attributes = fileParts[2..];
+			// ...
+
+			lib.add(
+				Dictionary.newFrom([
+					\numPoints, nPnts.asInteger, \t, t
+				]);
+			);
+		});
+	}
 
 	*new {
 		^super.new
@@ -202,7 +255,6 @@ SphericalDesign {
 		view.onClose_({
 			view.onClose.addFunc({ this.removeDependant(view) })
 		});
-
 		if (showConnections and: { triplets.notNil }) {
 			view.connectTriplets_(triplets);
 		};
@@ -216,6 +268,15 @@ SphericalDesign {
 
 	captureState {
 		initPoints = points.deepCopy
+	}
+
+	*availableDesigns {
+		availableDesigns ?? {
+			// traverse directory structure, parsing designs by directory and file name
+			// availableDesigns =
+		};
+
+		^availableDesigns
 	}
 }
 
