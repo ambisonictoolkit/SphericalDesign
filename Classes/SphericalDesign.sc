@@ -265,7 +265,7 @@ TDesign : SphericalDesign {
 			"No t-design file found at %".format(path).throw
 		};
 
-		data = FileReader.read(path);
+		data = FileReader.read(path, skipEmptyLines: true, skipBlanks: true);
 
 		points = data.collect(_.asFloat).flat.clump(3).collect{ |xyz|
 			Cartesian(*xyz)
